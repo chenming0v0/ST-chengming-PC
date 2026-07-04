@@ -1,0 +1,42 @@
+﻿/* Shared launcher theme */
+:root {
+  --background: #0a0a0a;
+  --card: #171717;
+  --popover: #262626;
+  --muted: #262626;
+  --foreground: #fafafa;
+  --card-foreground: #fafafa;
+  --popover-foreground: #fafafa;
+  --primary-foreground: #171717;
+  --secondary-foreground: #fafafa;
+  --muted-foreground: #a1a1a1;
+  --accent-foreground: #fafafa;
+  --destructive-foreground: #fafafa;
+  --primary: #e5e5e5;
+  --secondary: #262626;
+  --accent: #404040;
+  --input: #343434;
+  --ring: #737373;
+  --border: #282828;
+  --success: #62d178;
+  --error: #ff6166;
+  --destructive: #ff6467;
+  --chart-1: #91c5ff;
+  --chart-2: #3a81f6;
+  --chart-3: #2563ef;
+  --chart-4: #1a4eda;
+  --chart-5: #1f3fad;
+  --sidebar: #171717;
+  --sidebar-foreground: #fafafa;
+  --sidebar-primary: #1447e6;
+  --sidebar-primary-foreground: #fafafa;
+  --sidebar-accent: #262626;
+  --sidebar-accent-foreground: #fafafa;
+  --sidebar-border: #282828;
+  --font-sans: Geist, ui-sans-serif, sans-serif, system-ui;
+  --font-mono: Geist Mono, ui-monospace, monospace;
+  --radius: 0.5rem;
+  --shadow-md: 0 1px 0px 0px rgba(0,0,0,0), 0 2px 4px -1px rgba(0,0,0,0);
+}
+html, body { margin:0; padding:0; height:100%; background:var(--background); color:var(--foreground); font-family:var(--font-sans); color-scheme:dark; overflow:hidden; }
+*,*::before,*::after { box-sizing:border-box; }

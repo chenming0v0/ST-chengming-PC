@@ -1,0 +1,163 @@
+{
+  "data": [
+    {
+      "id": "page-launch",
+      "title": "启动器 - 启动",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1783163242710,
+      "canvasData": {
+        "x": 0,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/launch.html",
+        "interactions": [
+          {
+            "domId": "nav-install",
+            "targetPageId": "page-install",
+            "hideEdge": false,
+            "transitionLabel": "nav-install"
+          },
+          {
+            "domId": "nav-terminal",
+            "targetPageId": "page-terminal",
+            "hideEdge": false,
+            "transitionLabel": "nav-terminal"
+          },
+          {
+            "domId": "nav-settings",
+            "targetPageId": "page-settings",
+            "hideEdge": false,
+            "transitionLabel": "nav-settings"
+          },
+          {
+            "domId": "go-install",
+            "targetPageId": "page-install",
+            "hideEdge": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "page-install",
+      "title": "启动器 - 安装",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1783163242711,
+      "canvasData": {
+        "x": 620,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/install.html",
+        "interactions": [
+          {
+            "domId": "nav-launch",
+            "targetPageId": "page-launch",
+            "hideEdge": false,
+            "transitionLabel": "nav-launch"
+          },
+          {
+            "domId": "nav-terminal",
+            "targetPageId": "page-terminal",
+            "hideEdge": false,
+            "transitionLabel": "nav-terminal"
+          },
+          {
+            "domId": "nav-settings",
+            "targetPageId": "page-settings",
+            "hideEdge": false,
+            "transitionLabel": "nav-settings"
+          }
+        ]
+      }
+    },
+    {
+      "id": "page-terminal",
+      "title": "启动器 - 终端",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1783163242712,
+      "canvasData": {
+        "x": 620,
+        "y": 377,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/terminal.html",
+        "interactions": [
+          {
+            "domId": "nav-launch",
+            "targetPageId": "page-launch",
+            "hideEdge": false,
+            "transitionLabel": "nav-launch"
+          },
+          {
+            "domId": "nav-install",
+            "targetPageId": "page-install",
+            "hideEdge": false,
+            "transitionLabel": "nav-install"
+          },
+          {
+            "domId": "nav-settings",
+            "targetPageId": "page-settings",
+            "hideEdge": false,
+            "transitionLabel": "nav-settings"
+          }
+        ]
+      }
+    },
+    {
+      "id": "page-settings",
+      "title": "启动器 - 设置",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1783163242713,
+      "canvasData": {
+        "x": 620,
+        "y": 754,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/settings.html",
+        "interactions": [
+          {
+            "domId": "nav-launch",
+            "targetPageId": "page-launch",
+            "hideEdge": false,
+            "transitionLabel": "nav-launch"
+          },
+          {
+            "domId": "nav-install",
+            "targetPageId": "page-install",
+            "hideEdge": false,
+            "transitionLabel": "nav-install"
+          },
+          {
+            "domId": "nav-terminal",
+            "targetPageId": "page-terminal",
+            "hideEdge": false,
+            "transitionLabel": "nav-terminal"
+          }
+        ]
+      }
+    }
+  ],
+  "config": {
+    "autoLayout": true,
+    "deviceType": "desktop",
+    "projectName": "SillyTavern 启动器 UI",
+    "designLibrary": {
+      "name": "Vercel",
+      "id": "dl_builtin_vercel",
+      "version": null,
+      "scope": "built-in-global",
+      "path": "c:\\Users\\HEI\\.trae-cn\\design_libraries\\dl_builtin_vercel",
+      "versionSource": "selected-context"
+    },
+    "showEdge": false
+  }
+}

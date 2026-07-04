@@ -1,0 +1,191 @@
+{
+  "project": {
+    "name": "桌面软件启动器",
+    "path": "c:\\Users\\HEI\\Desktop\\辰林编译\\神秘tauri桌面软件\\ST-of-chengming\\desktop-launcher",
+    "operation": "create",
+    "deviceType": "desktop",
+    "language": "zh-CN",
+    "dashboardMode": false,
+    "designRead": "desktop launcher / power users & developers / precise technical / information-dense / avoid playful gradients",
+    "designDials": { "layoutVariance": 2, "motionIntensity": 2, "visualDensity": 4 },
+    "sharedProjectShellContract": {
+      "navigationShell": "Fixed left sidebar 220px, app title ST Launcher, 5 tab items with active invert fill; top bar with breadcrumb and window controls hint",
+      "primaryColorSystem": "Monochrome Vercel: near-black primary on light, soft neutral on dark",
+      "typographySystem": "Geist UI, Geist Mono for terminal, DM Serif for credits headline only",
+      "radiusScale": "8px default, sharp operational controls",
+      "surfaceDepthModel": "Borders over shadows; cards use 1px border",
+      "ctaStyle": "Solid primary button, ghost secondary, compact height ~32px",
+      "alignmentRules": "12px grid rhythm, dense toolbars, left-aligned content"
+    },
+    "generationTree": {
+      "root": {
+        "nodeId": "gen-launcher-shell",
+        "kind": "project-shell",
+        "pageIds": ["page-launcher", "page-links", "page-terminals", "page-files", "page-credits"],
+        "output": "partials/launcher-shell.html",
+        "sharedRegions": ["sidebar", "topbar"],
+        "status": "planned",
+        "children": []
+      }
+    }
+  },
+  "designSource": {
+    "operatingMode": "library-bound",
+    "libraryIdentity": {
+      "name": "Vercel",
+      "id": "dl_builtin_vercel",
+      "version": null,
+      "scope": "built-in-global",
+      "path": "c:\\Users\\HEI\\.trae-cn\\design_libraries\\dl_builtin_vercel",
+      "versionSource": "selected-context"
+    },
+    "libraryPath": "c:\\Users\\HEI\\.trae-cn\\design_libraries\\dl_builtin_vercel",
+    "cssFilePath": "c:\\Users\\HEI\\.trae-cn\\design_libraries\\dl_builtin_vercel\\colors_and_type.css",
+    "brandPrefix": "vercel",
+    "themeMode": "dark",
+    "designDecisionSummary": "Monochrome developer UI, compact density, Geist stack, sidebar frame, borders not elevation",
+    "componentContractKind": "legacy-json",
+    "allowedComponents": ["button", "card", "table", "navigation", "sidebar"],
+    "styleConstraints": {
+      "radiusMax": 8,
+      "spacingBase": 4,
+      "fontSizeBody": 13,
+      "controlHeightDefault": 32
+    },
+    "productContext": { "kitType": "dashboard", "productType": "developer platform" },
+    "iconAssets": {
+      "libraryKey": "vercel",
+      "path": "assets/icons/vercel",
+      "names": ["house", "external-link", "folder", "folder-open", "file", "terminal-style via mono", "user", "star", "heart"]
+    }
+  },
+  "pages": [
+    {
+      "nodeId": "page-launcher",
+      "title": "启动器 - 快捷按钮",
+      "htmlSrc": "pages/launcher.html",
+      "pageIndex": 1,
+      "pageType": "information-dense",
+      "stateGroupId": "launcher-tabs",
+      "stateRole": "base",
+      "baseStatePageId": "page-launcher",
+      "sharedShellContract": "Identical sidebar+topbar; only main panel differs",
+      "mutableRegions": ["activeNavItem", "mainContent"],
+      "visualNorthStar": "Dense grid of launch tiles like a control deck",
+      "continuityAnchors": ["sidebar 5 tabs", "dark monochrome shell"],
+      "componentPlan": [
+        { "slug": "sidebar", "contractFile": "c:\\Users\\HEI\\.trae-cn\\design_libraries\\dl_builtin_vercel\\components\\sidebar.json" },
+        { "slug": "button", "contractFile": "c:\\Users\\HEI\\.trae-cn\\design_libraries\\dl_builtin_vercel\\components\\button.json" },
+        { "slug": "card", "contractFile": "c:\\Users\\HEI\\.trae-cn\\design_libraries\\dl_builtin_vercel\\components\\card.json" }
+      ],
+      "imagePlan": [],
+      "chartsRequired": false
+    },
+    {
+      "nodeId": "page-links",
+      "title": "启动器 - 快捷链接",
+      "htmlSrc": "pages/links.html",
+      "pageIndex": 2,
+      "pageType": "information-dense",
+      "stateGroupId": "launcher-tabs",
+      "stateRole": "derived",
+      "baseStatePageId": "page-launcher",
+      "derivedFromHtmlSrc": "pages/launcher.html",
+      "sharedShellContract": "Copy base shell verbatim",
+      "mutableRegions": ["activeNavItem", "mainContent"],
+      "visualNorthStar": "Bookmark list with external-link affordance",
+      "continuityAnchors": ["sidebar 5 tabs", "dark monochrome shell"],
+      "componentPlan": [
+        { "slug": "sidebar", "contractFile": "c:\\Users\\HEI\\.trae-cn\\design_libraries\\dl_builtin_vercel\\components\\sidebar.json" },
+        { "slug": "table", "contractFile": "c:\\Users\\HEI\\.trae-cn\\design_libraries\\dl_builtin_vercel\\components\\table.json" },
+        { "slug": "button", "contractFile": "c:\\Users\\HEI\\.trae-cn\\design_libraries\\dl_builtin_vercel\\components\\button.json" }
+      ],
+      "imagePlan": [],
+      "chartsRequired": false
+    },
+    {
+      "nodeId": "page-terminals",
+      "title": "启动器 - 终端",
+      "htmlSrc": "pages/terminals.html",
+      "pageIndex": 3,
+      "pageType": "task-driven",
+      "stateGroupId": "launcher-tabs",
+      "stateRole": "derived",
+      "baseStatePageId": "page-launcher",
+      "derivedFromHtmlSrc": "pages/launcher.html",
+      "mutableRegions": ["activeNavItem", "mainContent"],
+      "visualNorthStar": "Multi-tab terminal manager with 3 sessions visible",
+      "continuityAnchors": ["sidebar 5 tabs", "Geist Mono panes"],
+      "componentPlan": [
+        { "slug": "sidebar", "contractFile": "c:\\Users\\HEI\\.trae-cn\\design_libraries\\dl_builtin_vercel\\components\\sidebar.json" },
+        { "slug": "card", "contractFile": "c:\\Users\\HEI\\.trae-cn\\design_libraries\\dl_builtin_vercel\\components\\card.json" }
+      ],
+      "imagePlan": [],
+      "chartsRequired": false
+    },
+    {
+      "nodeId": "page-files",
+      "title": "启动器 - 文件夹",
+      "htmlSrc": "pages/files.html",
+      "pageIndex": 4,
+      "pageType": "information-dense",
+      "stateGroupId": "launcher-tabs",
+      "stateRole": "derived",
+      "baseStatePageId": "page-launcher",
+      "derivedFromHtmlSrc": "pages/launcher.html",
+      "mutableRegions": ["activeNavItem", "mainContent"],
+      "visualNorthStar": "Root directory browser with tree + file table",
+      "continuityAnchors": ["sidebar 5 tabs", "folder icons from library"],
+      "componentPlan": [
+        { "slug": "sidebar", "contractFile": "c:\\Users\\HEI\\.trae-cn\\design_libraries\\dl_builtin_vercel\\components\\sidebar.json" },
+        { "slug": "table", "contractFile": "c:\\Users\\HEI\\.trae-cn\\design_libraries\\dl_builtin_vercel\\components\\table.json" }
+      ],
+      "imagePlan": [],
+      "chartsRequired": false
+    },
+    {
+      "nodeId": "page-credits",
+      "title": "启动器 - 鸣谢",
+      "htmlSrc": "pages/credits.html",
+      "pageIndex": 5,
+      "pageType": "showcase",
+      "stateGroupId": "launcher-tabs",
+      "stateRole": "derived",
+      "baseStatePageId": "page-launcher",
+      "derivedFromHtmlSrc": "pages/launcher.html",
+      "mutableRegions": ["activeNavItem", "mainContent"],
+      "visualNorthStar": "Warm thank-you scroll with contributor cards",
+      "continuityAnchors": ["sidebar 5 tabs", "editorial serif headline"],
+      "componentPlan": [
+        { "slug": "sidebar", "contractFile": "c:\\Users\\HEI\\.trae-cn\\design_libraries\\dl_builtin_vercel\\components\\sidebar.json" },
+        { "slug": "card", "contractFile": "c:\\Users\\HEI\\.trae-cn\\design_libraries\\dl_builtin_vercel\\components\\card.json" }
+      ],
+      "imagePlan": [],
+      "chartsRequired": false
+    }
+  ],
+  "assets": [],
+  "wiringPlan": [],
+  "hiddenInteractionPlan": [
+    { "sourcePageId": "page-launcher", "domId": "nav-links", "targetPageId": "page-links", "hideEdge": true },
+    { "sourcePageId": "page-launcher", "domId": "nav-terminals", "targetPageId": "page-terminals", "hideEdge": true },
+    { "sourcePageId": "page-launcher", "domId": "nav-files", "targetPageId": "page-files", "hideEdge": true },
+    { "sourcePageId": "page-launcher", "domId": "nav-credits", "targetPageId": "page-credits", "hideEdge": true },
+    { "sourcePageId": "page-links", "domId": "nav-launcher", "targetPageId": "page-launcher", "hideEdge": true },
+    { "sourcePageId": "page-links", "domId": "nav-terminals", "targetPageId": "page-terminals", "hideEdge": true },
+    { "sourcePageId": "page-links", "domId": "nav-files", "targetPageId": "page-files", "hideEdge": true },
+    { "sourcePageId": "page-links", "domId": "nav-credits", "targetPageId": "page-credits", "hideEdge": true },
+    { "sourcePageId": "page-terminals", "domId": "nav-launcher", "targetPageId": "page-launcher", "hideEdge": true },
+    { "sourcePageId": "page-terminals", "domId": "nav-links", "targetPageId": "page-links", "hideEdge": true },
+    { "sourcePageId": "page-terminals", "domId": "nav-files", "targetPageId": "page-files", "hideEdge": true },
+    { "sourcePageId": "page-terminals", "domId": "nav-credits", "targetPageId": "page-credits", "hideEdge": true },
+    { "sourcePageId": "page-files", "domId": "nav-launcher", "targetPageId": "page-launcher", "hideEdge": true },
+    { "sourcePageId": "page-files", "domId": "nav-links", "targetPageId": "page-links", "hideEdge": true },
+    { "sourcePageId": "page-files", "domId": "nav-terminals", "targetPageId": "page-terminals", "hideEdge": true },
+    { "sourcePageId": "page-files", "domId": "nav-credits", "targetPageId": "page-credits", "hideEdge": true },
+    { "sourcePageId": "page-credits", "domId": "nav-launcher", "targetPageId": "page-launcher", "hideEdge": true },
+    { "sourcePageId": "page-credits", "domId": "nav-links", "targetPageId": "page-links", "hideEdge": true },
+    { "sourcePageId": "page-credits", "domId": "nav-terminals", "targetPageId": "page-terminals", "hideEdge": true },
+    { "sourcePageId": "page-files", "domId": "nav-files", "targetPageId": "page-files", "hideEdge": true }
+  ]
+}
