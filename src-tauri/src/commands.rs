@@ -4,6 +4,7 @@ use crate::tavern;
 use crate::terminal::SharedTerminalManager;
 use crate::terminal::TerminalSession;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use tauri::{Emitter, State};
 
@@ -55,6 +56,7 @@ pub async fn install_runtime(app: tauri::AppHandle, window: tauri::Window) -> Re
     }).ok();
 
     runtime::install_node(&base).await?;
+    runtime::configure_npm(&RuntimePaths::new(&base)).await?;
 
     window.emit("install-progress", ProgressEvent {
         stage: "node".into(),
@@ -150,21 +152,26 @@ pub async fn start_tavern(
     let paths = RuntimePaths::new(&base);
     let st_dir = tavern::tavern_dir(&base);
 
+    if !paths.node_installed() || !paths.git_installed() {
+        return Err("请先安装运行时环境 (Node.js + Git)".into());
+    }
+
     if !st_dir.exists() {
         return Err("SillyTavern 未安装".into());
     }
 
-    let env_path = paths.env_path();
+    runtime::configure_npm(&paths).await?;
+    let env_vars = runtime_env_vars(&paths);
 
     let mut mgr = terminal_mgr.lock().map_err(|e| e.to_string())?;
     let session_id = mgr.spawn_session(
         app,
         "SillyTavern".into(),
         st_dir,
-        Some(env_path),
+        Some(env_vars),
     )?;
 
-    mgr.write_to_session(&session_id, "node server.js")?;
+    mgr.write_to_session(&session_id, tavern::launch_command())?;
 
     Ok(session_id)
 }
@@ -179,14 +186,14 @@ pub async fn terminal_create(
 ) -> Result<String, String> {
     let base = get_base_dir(&app)?;
     let paths = RuntimePaths::new(&base);
-    let env_path = paths.env_path();
+    let env_vars = runtime_env_vars(&paths);
 
     let mut mgr = terminal_mgr.lock().map_err(|e| e.to_string())?;
     mgr.spawn_session(
         app,
         title.unwrap_or_else(|| "PowerShell".into()),
         base,
-        Some(env_path),
+        Some(env_vars),
     )
 }
 
@@ -259,4 +266,8 @@ fn detect_version(exe: &PathBuf) -> Option<String> {
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
         .map(|s| s.trim().to_string())
+}
+
+fn runtime_env_vars(paths: &RuntimePaths) -> HashMap<String, String> {
+    paths.env_vars().into_iter().collect()
 }

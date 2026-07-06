@@ -46,7 +46,7 @@ impl TerminalManager {
         app: AppHandle,
         title: String,
         cwd: PathBuf,
-        env_path: Option<String>,
+        env_vars: Option<HashMap<String, String>>,
     ) -> Result<String, String> {
         let id = format!("term-{}", self.next_id);
         self.next_id += 1;
@@ -66,8 +66,10 @@ impl TerminalManager {
         cmd.arg("prompt $P$G");
         cmd.cwd(cwd.clone());
 
-        if let Some(path) = env_path {
-            cmd.env("PATH", path);
+        if let Some(vars) = env_vars {
+            for (key, value) in vars {
+                cmd.env(key, value);
+            }
         }
 
         let child = pair

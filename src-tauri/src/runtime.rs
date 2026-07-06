@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use tokio::fs;
 use reqwest::Client;
@@ -7,6 +8,7 @@ use serde::{Deserialize, Serialize};
 const NODE_VERSION: &str = "v24.18.0";
 const NODE_URL: &str = "https://nodejs.org/dist/v24.18.0/node-v24.18.0-win-x64.zip";
 const GIT_URL: &str = "https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.2/PortableGit-2.55.0.2-64-bit.7z.exe";
+pub const NPM_REGISTRY: &str = "https://registry.npmmirror.com";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimePaths {
@@ -15,6 +17,7 @@ pub struct RuntimePaths {
     pub git_dir: PathBuf,
     pub node_exe: PathBuf,
     pub npm_cmd: PathBuf,
+    pub npmrc: PathBuf,
     pub git_exe: PathBuf,
 }
 
@@ -25,8 +28,9 @@ impl RuntimePaths {
         let git_dir = base_dir.join("git");
         let node_exe = node_dir.join("node.exe");
         let npm_cmd = node_dir.join("npm.cmd");
+        let npmrc = base_dir.join("npmrc");
         let git_exe = git_dir.join("cmd").join("git.exe");
-        Self { base_dir, node_dir, git_dir, node_exe, npm_cmd, git_exe }
+        Self { base_dir, node_dir, git_dir, node_exe, npm_cmd, npmrc, git_exe }
     }
 
     pub fn node_installed(&self) -> bool {
@@ -42,6 +46,17 @@ impl RuntimePaths {
         let git_cmd_path = self.git_dir.join("cmd").to_string_lossy().to_string();
         let git_bin_path = self.git_dir.join("bin").to_string_lossy().to_string();
         format!("{};{};{}", node_path, git_cmd_path, git_bin_path)
+    }
+
+    pub fn env_vars(&self) -> BTreeMap<String, String> {
+        BTreeMap::from([
+            ("PATH".to_string(), self.env_path()),
+            ("NPM_CONFIG_REGISTRY".to_string(), NPM_REGISTRY.to_string()),
+            (
+                "NPM_CONFIG_USERCONFIG".to_string(),
+                self.npmrc.to_string_lossy().to_string(),
+            ),
+        ])
     }
 }
 
@@ -125,6 +140,7 @@ pub async fn install_node(install_dir: &Path) -> Result<RuntimePaths, String> {
     }
 
     let _ = fs::remove_file(&tmp_zip).await;
+    configure_npm(&paths).await?;
     Ok(paths)
 }
 
@@ -159,6 +175,15 @@ pub async fn install_git(install_dir: &Path) -> Result<RuntimePaths, String> {
 
     let _ = fs::remove_file(&tmp_exe).await;
     Ok(paths)
+}
+
+pub async fn configure_npm(paths: &RuntimePaths) -> Result<(), String> {
+    fs::create_dir_all(&paths.base_dir)
+        .await
+        .map_err(|e| format!("创建 runtime 目录失败: {}", e))?;
+    fs::write(&paths.npmrc, format!("registry={}\n", NPM_REGISTRY))
+        .await
+        .map_err(|e| format!("写入 npm 配置失败: {}", e))
 }
 
 async fn extract_zip(zip_path: &Path, dest: &Path) -> Result<(), String> {
@@ -216,6 +241,22 @@ mod tests {
         assert_eq!(paths.base_dir, install_dir.join("runtime"));
         assert_eq!(paths.node_exe, install_dir.join("runtime").join("node").join("node.exe"));
         assert_eq!(paths.npm_cmd, install_dir.join("runtime").join("node").join("npm.cmd"));
+        assert_eq!(paths.npmrc, install_dir.join("runtime").join("npmrc"));
         assert_eq!(paths.git_exe, install_dir.join("runtime").join("git").join("cmd").join("git.exe"));
+    }
+
+    #[test]
+    fn runtime_env_uses_private_path_and_taobao_registry() {
+        let install_dir = PathBuf::from(r"C:\launcher");
+        let paths = RuntimePaths::new(&install_dir);
+
+        let env = paths.env_vars();
+
+        assert_eq!(env.get("PATH").unwrap(), &paths.env_path());
+        assert_eq!(env.get("NPM_CONFIG_REGISTRY").unwrap(), NPM_REGISTRY);
+        assert_eq!(
+            env.get("NPM_CONFIG_USERCONFIG").unwrap(),
+            &install_dir.join("runtime").join("npmrc").to_string_lossy().to_string()
+        );
     }
 }

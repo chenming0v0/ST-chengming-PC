@@ -23,6 +23,10 @@ pub fn is_installed(install_dir: &Path) -> bool {
     st_dir.join("package.json").exists()
 }
 
+pub fn launch_command() -> &'static str {
+    "npm install && npm start"
+}
+
 pub async fn get_status(install_dir: &Path) -> TavernStatus {
     let path = tavern_dir(install_dir);
     let installed = is_installed(install_dir);
@@ -60,13 +64,13 @@ pub async fn install(install_dir: &Path, runtime: &RuntimePaths) -> Result<Strin
         return Err("SillyTavern 目录已存在，请先卸载或使用更新功能".to_string());
     }
 
-    let env_path = build_env_path(runtime);
+    let env = runtime.env_vars();
 
     let output = Command::new(&runtime.git_exe)
         .arg("clone")
         .arg(ST_REPO)
         .arg(&st_dir)
-        .env("PATH", &env_path)
+        .envs(&env)
         .output()
         .await
         .map_err(|e| format!("执行 git clone 失败: {}", e))?;
@@ -79,7 +83,7 @@ pub async fn install(install_dir: &Path, runtime: &RuntimePaths) -> Result<Strin
     let npm_install = Command::new(&runtime.npm_cmd)
         .arg("install")
         .current_dir(&st_dir)
-        .env("PATH", &env_path)
+        .envs(&env)
         .output()
         .await
         .map_err(|e| format!("执行 npm install 失败: {}", e))?;
@@ -100,12 +104,12 @@ pub async fn update(install_dir: &Path, runtime: &RuntimePaths) -> Result<String
         return Err("SillyTavern 未安装或不是 git 仓库".to_string());
     }
 
-    let env_path = build_env_path(runtime);
+    let env = runtime.env_vars();
 
     let output = Command::new(&runtime.git_exe)
         .args(["pull", "--rebase"])
         .current_dir(&st_dir)
-        .env("PATH", &env_path)
+        .envs(&env)
         .output()
         .await
         .map_err(|e| format!("执行 git pull 失败: {}", e))?;
@@ -121,7 +125,7 @@ pub async fn update(install_dir: &Path, runtime: &RuntimePaths) -> Result<String
         let npm_install = Command::new(&runtime.npm_cmd)
             .arg("install")
             .current_dir(&st_dir)
-            .env("PATH", &env_path)
+            .envs(&env)
             .output()
             .await
             .map_err(|e| format!("执行 npm install 失败: {}", e))?;
@@ -136,6 +140,7 @@ pub async fn update(install_dir: &Path, runtime: &RuntimePaths) -> Result<String
     Ok(format!("SillyTavern 已更新到 {}\n{}", version, pull_msg.trim()))
 }
 
+#[cfg(test)]
 fn build_env_path(runtime: &RuntimePaths) -> String {
     runtime.env_path()
 }
@@ -157,5 +162,10 @@ mod tests {
         assert!(path.contains(r"C:\launcher\runtime\git\bin"));
         assert!(!path.contains(r"C:\Windows\System32"));
         assert!(!path.contains(r"C:\Program Files\Git\cmd"));
+    }
+
+    #[test]
+    fn launch_command_installs_deps_then_uses_npm_start() {
+        assert_eq!(launch_command(), "npm install && npm start");
     }
 }
