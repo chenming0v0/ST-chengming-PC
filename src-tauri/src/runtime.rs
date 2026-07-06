@@ -6,8 +6,10 @@ use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 
 const NODE_VERSION: &str = "v24.18.0";
-const NODE_URL: &str = "https://nodejs.org/dist/v24.18.0/node-v24.18.0-win-x64.zip";
-const GIT_URL: &str = "https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.2/PortableGit-2.55.0.2-64-bit.7z.exe";
+const NODE_URL: &str =
+    "https://cnb.cool/clya.top/cloudnodegit/-/git/raw/main/node-v24.18.0-win-x64.zip";
+const GIT_URL: &str =
+    "https://cnb.cool/clya.top/cloudnodegit/-/git/raw/main/PortableGit-2.55.0.2-64-bit.7z.exe";
 pub const NPM_REGISTRY: &str = "https://registry.npmmirror.com";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -227,10 +229,16 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    fn node_download_source_uses_node_24_windows_zip() {
+    fn runtime_download_sources_use_cloudnodegit_mirror() {
         assert!(NODE_VERSION.starts_with("v24."));
-        assert!(NODE_URL.contains("/dist/v24."));
-        assert!(NODE_URL.ends_with("-win-x64.zip"));
+        assert_eq!(
+            NODE_URL,
+            "https://cnb.cool/clya.top/cloudnodegit/-/git/raw/main/node-v24.18.0-win-x64.zip"
+        );
+        assert_eq!(
+            GIT_URL,
+            "https://cnb.cool/clya.top/cloudnodegit/-/git/raw/main/PortableGit-2.55.0.2-64-bit.7z.exe"
+        );
     }
 
     #[test]
