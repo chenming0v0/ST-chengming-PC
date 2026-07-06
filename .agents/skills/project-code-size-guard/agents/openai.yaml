@@ -1,0 +1,4 @@
+interface:
+  display_name: "项目代码行数守卫"
+  short_description: "检查 src 与 src-tauri/src 文件行数，推动拆分过长文件。"
+  default_prompt: "使用项目代码行数守卫检查本项目代码文件是否超过 300/500 行阈值，并根据结果拆分过长文件。"
