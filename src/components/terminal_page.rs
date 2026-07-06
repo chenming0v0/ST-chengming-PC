@@ -34,7 +34,7 @@ pub fn TerminalPage(
             <section class="terminal-window">
                 <div class="terminal-window-bar">
                     <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
-                    <strong>"SillyTavern - npm install && npm start"</strong>
+                    <strong>"SillyTavern - npm install && node server.js"</strong>
                 </div>
                 <div class="terminal-output">
                     {move || {

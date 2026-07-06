@@ -1292,7 +1292,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 8px 0 12px;
+  padding: 0 0 0 12px;
   background: var(--sidebar);
   user-select: none;
 }
@@ -1324,10 +1324,28 @@ body {
 
 .wc button {
   width: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
   border: 0;
   background: transparent;
   color: var(--muted);
   font-size: 13px;
+  line-height: 0;
+}
+
+.wc-icon {
+  width: 13px;
+  height: 13px;
+  display: block;
+  flex: 0 0 13px;
+  overflow: visible;
+}
+
+.wc-help-icon {
+  width: 15px;
+  height: 15px;
+  flex-basis: 15px;
 }
 
 .wc button:hover {

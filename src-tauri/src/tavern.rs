@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
-use tokio::process::Command;
 use serde::{Deserialize, Serialize};
 
+use crate::process_runner;
 use crate::runtime::RuntimePaths;
 
 const ST_REPO: &str = "https://gitcode.com/GitHub_Trending/si/SillyTavern.git";
@@ -23,8 +23,9 @@ pub fn is_installed(install_dir: &Path) -> bool {
     st_dir.join("package.json").exists()
 }
 
+#[cfg(test)]
 pub fn launch_command() -> &'static str {
-    "npm install && npm start"
+    "npm install && node server.js --browserLaunchEnabled=false"
 }
 
 pub async fn get_status(install_dir: &Path) -> TavernStatus {
@@ -66,7 +67,7 @@ pub async fn install(install_dir: &Path, runtime: &RuntimePaths) -> Result<Strin
 
     let env = runtime.env_vars();
 
-    let output = Command::new(&runtime.git_exe)
+    let output = process_runner::hidden_tokio_command(&runtime.git_exe)
         .arg("clone")
         .arg(ST_REPO)
         .arg(&st_dir)
@@ -80,7 +81,7 @@ pub async fn install(install_dir: &Path, runtime: &RuntimePaths) -> Result<Strin
         return Err(format!("git clone 失败: {}", stderr));
     }
 
-    let npm_install = Command::new(&runtime.npm_cmd)
+    let npm_install = process_runner::hidden_tokio_command(&runtime.npm_cmd)
         .arg("install")
         .current_dir(&st_dir)
         .envs(&env)
@@ -106,7 +107,7 @@ pub async fn update(install_dir: &Path, runtime: &RuntimePaths) -> Result<String
 
     let env = runtime.env_vars();
 
-    let output = Command::new(&runtime.git_exe)
+    let output = process_runner::hidden_tokio_command(&runtime.git_exe)
         .args(["pull", "--rebase"])
         .current_dir(&st_dir)
         .envs(&env)
@@ -122,7 +123,7 @@ pub async fn update(install_dir: &Path, runtime: &RuntimePaths) -> Result<String
     let pull_msg = String::from_utf8_lossy(&output.stdout).to_string();
 
     if !pull_msg.contains("Already up to date") {
-        let npm_install = Command::new(&runtime.npm_cmd)
+        let npm_install = process_runner::hidden_tokio_command(&runtime.npm_cmd)
             .arg("install")
             .current_dir(&st_dir)
             .envs(&env)
@@ -156,16 +157,20 @@ mod tests {
         let runtime = RuntimePaths::new(&PathBuf::from(r"C:\launcher"));
 
         let path = build_env_path(&runtime);
+        let lower_path = path.to_ascii_lowercase();
 
         assert!(path.contains(r"C:\launcher\runtime\node"));
         assert!(path.contains(r"C:\launcher\runtime\git\cmd"));
         assert!(path.contains(r"C:\launcher\runtime\git\bin"));
-        assert!(!path.contains(r"C:\Windows\System32"));
-        assert!(!path.contains(r"C:\Program Files\Git\cmd"));
+        assert!(lower_path.contains(r"c:\windows\system32"));
+        assert!(!lower_path.contains(r"c:\program files\git"));
     }
 
     #[test]
-    fn launch_command_installs_deps_then_uses_npm_start() {
-        assert_eq!(launch_command(), "npm install && npm start");
+    fn launch_command_installs_deps_then_starts_server_without_cmd_shell() {
+        assert_eq!(
+            launch_command(),
+            "npm install && node server.js --browserLaunchEnabled=false"
+        );
     }
 }

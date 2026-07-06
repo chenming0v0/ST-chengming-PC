@@ -1,6 +1,9 @@
 mod commands;
 mod paths;
+mod process_runner;
 mod runtime;
+#[cfg(test)]
+mod runtime_tests;
 mod tavern;
 mod terminal;
 

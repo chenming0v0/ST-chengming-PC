@@ -5,10 +5,12 @@ use reqwest::Client;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 
-const NODE_VERSION: &str = "v24.18.0";
-const NODE_URL: &str =
+use crate::process_runner;
+
+pub(crate) const NODE_VERSION: &str = "v24.18.0";
+pub(crate) const NODE_URL: &str =
     "https://cnb.cool/clya.top/cloudnodegit/-/git/raw/main/node-v24.18.0-win-x64.zip";
-const GIT_URL: &str =
+pub(crate) const GIT_URL: &str =
     "https://cnb.cool/clya.top/cloudnodegit/-/git/raw/main/PortableGit-2.55.0.2-64-bit.7z.exe";
 pub const NPM_REGISTRY: &str = "https://registry.npmmirror.com";
 
@@ -44,22 +46,81 @@ impl RuntimePaths {
     }
 
     pub fn env_path(&self) -> String {
-        let node_path = self.node_dir.to_string_lossy();
-        let git_cmd_path = self.git_dir.join("cmd").to_string_lossy().to_string();
-        let git_bin_path = self.git_dir.join("bin").to_string_lossy().to_string();
-        format!("{};{};{}", node_path, git_cmd_path, git_bin_path)
+        runtime_path_entries(self)
+            .into_iter()
+            .chain(windows_system_path_entries())
+            .collect::<Vec<_>>()
+            .join(";")
     }
 
     pub fn env_vars(&self) -> BTreeMap<String, String> {
-        BTreeMap::from([
+        let mut vars = preserved_windows_env_vars();
+        vars.extend([
             ("PATH".to_string(), self.env_path()),
             ("NPM_CONFIG_REGISTRY".to_string(), NPM_REGISTRY.to_string()),
             (
                 "NPM_CONFIG_USERCONFIG".to_string(),
                 self.npmrc.to_string_lossy().to_string(),
             ),
-        ])
+        ]);
+        vars
     }
+
+    pub fn npm_cli_js(&self) -> PathBuf {
+        self.node_dir
+            .join("node_modules")
+            .join("npm")
+            .join("bin")
+            .join("npm-cli.js")
+    }
+}
+
+fn runtime_path_entries(paths: &RuntimePaths) -> Vec<String> {
+    vec![
+        paths.node_dir.to_string_lossy().to_string(),
+        paths.git_dir.join("cmd").to_string_lossy().to_string(),
+        paths.git_dir.join("bin").to_string_lossy().to_string(),
+    ]
+}
+
+fn windows_system_path_entries() -> Vec<String> {
+    let windows_dir = std::env::var("SystemRoot")
+        .or_else(|_| std::env::var("WINDIR"))
+        .unwrap_or_else(|_| r"C:\Windows".to_string());
+    let windows_dir = PathBuf::from(windows_dir);
+
+    [
+        windows_dir.join("System32"),
+        windows_dir.clone(),
+        windows_dir.join("System32").join("Wbem"),
+        windows_dir
+            .join("System32")
+            .join("WindowsPowerShell")
+            .join("v1.0"),
+    ]
+    .into_iter()
+    .map(|path| path.to_string_lossy().to_string())
+    .collect()
+}
+
+fn preserved_windows_env_vars() -> BTreeMap<String, String> {
+    [
+        "SystemRoot",
+        "WINDIR",
+        "ComSpec",
+        "TEMP",
+        "TMP",
+        "PATHEXT",
+        "USERPROFILE",
+        "APPDATA",
+        "LOCALAPPDATA",
+        "ProgramData",
+        "HOMEDRIVE",
+        "HOMEPATH",
+    ]
+    .into_iter()
+    .filter_map(|key| std::env::var(key).ok().map(|value| (key.to_string(), value)))
+    .collect()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -165,7 +226,7 @@ pub async fn install_git(install_dir: &Path) -> Result<RuntimePaths, String> {
 
     let git_dir_str = paths.git_dir.to_string_lossy().to_string();
     let tmp_exe_str = tmp_exe.to_string_lossy().to_string();
-    let status = tokio::process::Command::new(&tmp_exe_str)
+    let status = process_runner::hidden_tokio_command(Path::new(&tmp_exe_str))
         .args(["-o", &git_dir_str, "-y"])
         .status()
         .await
@@ -221,50 +282,4 @@ async fn extract_zip(zip_path: &Path, dest: &Path) -> Result<(), String> {
     })
     .await
     .map_err(|e| format!("解压任务失败: {}", e))?
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::path::PathBuf;
-
-    #[test]
-    fn runtime_download_sources_use_cloudnodegit_mirror() {
-        assert!(NODE_VERSION.starts_with("v24."));
-        assert_eq!(
-            NODE_URL,
-            "https://cnb.cool/clya.top/cloudnodegit/-/git/raw/main/node-v24.18.0-win-x64.zip"
-        );
-        assert_eq!(
-            GIT_URL,
-            "https://cnb.cool/clya.top/cloudnodegit/-/git/raw/main/PortableGit-2.55.0.2-64-bit.7z.exe"
-        );
-    }
-
-    #[test]
-    fn runtime_paths_are_project_local() {
-        let install_dir = PathBuf::from(r"C:\launcher");
-        let paths = RuntimePaths::new(&install_dir);
-
-        assert_eq!(paths.base_dir, install_dir.join("runtime"));
-        assert_eq!(paths.node_exe, install_dir.join("runtime").join("node").join("node.exe"));
-        assert_eq!(paths.npm_cmd, install_dir.join("runtime").join("node").join("npm.cmd"));
-        assert_eq!(paths.npmrc, install_dir.join("runtime").join("npmrc"));
-        assert_eq!(paths.git_exe, install_dir.join("runtime").join("git").join("cmd").join("git.exe"));
-    }
-
-    #[test]
-    fn runtime_env_uses_private_path_and_taobao_registry() {
-        let install_dir = PathBuf::from(r"C:\launcher");
-        let paths = RuntimePaths::new(&install_dir);
-
-        let env = paths.env_vars();
-
-        assert_eq!(env.get("PATH").unwrap(), &paths.env_path());
-        assert_eq!(env.get("NPM_CONFIG_REGISTRY").unwrap(), NPM_REGISTRY);
-        assert_eq!(
-            env.get("NPM_CONFIG_USERCONFIG").unwrap(),
-            &install_dir.join("runtime").join("npmrc").to_string_lossy().to_string()
-        );
-    }
 }

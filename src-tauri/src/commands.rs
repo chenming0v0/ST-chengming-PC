@@ -1,4 +1,5 @@
 use crate::paths;
+use crate::process_runner;
 use crate::runtime::{self, RuntimePaths};
 use crate::tavern;
 use crate::terminal::SharedTerminalManager;
@@ -37,11 +38,12 @@ pub struct TavernStatus {
 pub async fn get_runtime_status(app: tauri::AppHandle) -> Result<RuntimeStatus, String> {
     let base = get_base_dir(&app)?;
     let paths = RuntimePaths::new(&base);
+    let env_vars = runtime_env_vars(&paths);
     Ok(RuntimeStatus {
         node_installed: paths.node_installed(),
         git_installed: paths.git_installed(),
-        node_version: detect_version(&paths.node_exe),
-        git_version: detect_version(&paths.git_exe),
+        node_version: detect_version(&paths.node_exe, &env_vars),
+        git_version: detect_version(&paths.git_exe, &env_vars),
     })
 }
 
@@ -162,16 +164,30 @@ pub async fn start_tavern(
 
     runtime::configure_npm(&paths).await?;
     let env_vars = runtime_env_vars(&paths);
+    let startup_session = "startup".to_string();
+
+    process_runner::run_hidden_command(
+        &app,
+        &startup_session,
+        &paths.node_exe,
+        &[paths.npm_cli_js().to_string_lossy().to_string(), "install".to_string()],
+        &st_dir,
+        &env_vars,
+    )
+    .await?;
 
     let mut mgr = terminal_mgr.lock().map_err(|e| e.to_string())?;
-    let session_id = mgr.spawn_session(
+    let session_id = mgr.spawn_process_session(
         app,
         "SillyTavern".into(),
         st_dir,
-        Some(env_vars),
+        env_vars,
+        paths.node_exe,
+        vec![
+            "server.js".to_string(),
+            "--browserLaunchEnabled=false".to_string(),
+        ],
     )?;
-
-    mgr.write_to_session(&session_id, tavern::launch_command())?;
 
     Ok(session_id)
 }
@@ -256,12 +272,13 @@ fn get_base_dir(_app: &tauri::AppHandle) -> Result<PathBuf, String> {
     paths::current_app_paths().map(|paths| paths.install_dir)
 }
 
-fn detect_version(exe: &PathBuf) -> Option<String> {
+fn detect_version(exe: &PathBuf, env_vars: &HashMap<String, String>) -> Option<String> {
     if !exe.exists() {
         return None;
     }
-    std::process::Command::new(exe)
+    process_runner::hidden_std_command(exe)
         .arg("--version")
+        .envs(env_vars)
         .output()
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())

@@ -1,11 +1,18 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::process::{Child as ProcessChild, Command as ProcessCommand, Stdio};
 use std::sync::{Arc, Mutex};
 
-use portable_pty::{native_pty_system, Child, CommandBuilder, PtySize};
+use portable_pty::{native_pty_system, Child as PtyChild, CommandBuilder, PtySize};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
+
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TerminalSession {
@@ -22,10 +29,26 @@ pub struct TerminalOutputEvent {
 }
 
 pub struct TerminalProcess {
-    child: Box<dyn Child + Send>,
+    child: TerminalChild,
     writer: Box<dyn Write + Send>,
     title: String,
     cwd: PathBuf,
+}
+
+enum TerminalChild {
+    Pty(Box<dyn PtyChild + Send>),
+    Process(ProcessChild),
+}
+
+impl TerminalChild {
+    fn kill(&mut self) -> Result<(), String> {
+        match self {
+            TerminalChild::Pty(child) => child.kill().map_err(|e| format!("终止终端失败: {}", e)),
+            TerminalChild::Process(child) => {
+                child.kill().map_err(|e| format!("终止进程失败: {}", e))
+            }
+        }
+    }
 }
 
 pub struct TerminalManager {
@@ -76,7 +99,7 @@ impl TerminalManager {
             .slave
             .spawn_command(cmd)
             .map_err(|e| format!("启动终端失败: {}", e))?;
-        let mut reader = pair
+        let reader = pair
             .master
             .try_clone_reader()
             .map_err(|e| format!("创建终端读取器失败: {}", e))?;
@@ -85,32 +108,68 @@ impl TerminalManager {
             .take_writer()
             .map_err(|e| format!("创建终端写入器失败: {}", e))?;
 
-        let event_id = id.clone();
-        std::thread::spawn(move || {
-            let mut buf = [0u8; 8192];
-            loop {
-                match reader.read(&mut buf) {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        let data = String::from_utf8_lossy(&buf[..n]).to_string();
-                        let _ = app.emit(
-                            "terminal-output",
-                            TerminalOutputEvent {
-                                session_id: event_id.clone(),
-                                data,
-                            },
-                        );
-                    }
-                    Err(_) => break,
-                }
-            }
-        });
+        spawn_output_thread(app, id.clone(), reader);
 
         self.sessions.insert(
             id.clone(),
             TerminalProcess {
-                child,
+                child: TerminalChild::Pty(child),
                 writer,
+                title,
+                cwd,
+            },
+        );
+
+        Ok(id)
+    }
+
+    pub fn spawn_process_session(
+        &mut self,
+        app: AppHandle,
+        title: String,
+        cwd: PathBuf,
+        env_vars: HashMap<String, String>,
+        program: PathBuf,
+        args: Vec<String>,
+    ) -> Result<String, String> {
+        let id = format!("term-{}", self.next_id);
+        self.next_id += 1;
+
+        let mut cmd = ProcessCommand::new(&program);
+        cmd.args(&args)
+            .current_dir(cwd.clone())
+            .envs(env_vars)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        #[cfg(windows)]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| format!("启动进程失败 {}: {}", program.display(), e))?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| "创建进程输出读取器失败".to_string())?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| "创建进程错误输出读取器失败".to_string())?;
+        let writer = child
+            .stdin
+            .take()
+            .ok_or_else(|| "创建进程写入器失败".to_string())?;
+
+        spawn_output_thread(app.clone(), id.clone(), stdout);
+        spawn_output_thread(app, id.clone(), stderr);
+
+        self.sessions.insert(
+            id.clone(),
+            TerminalProcess {
+                child: TerminalChild::Process(child),
+                writer: Box::new(writer),
                 title,
                 cwd,
             },
@@ -140,9 +199,7 @@ impl TerminalManager {
 
     pub fn kill_session(&mut self, id: &str) -> Result<(), String> {
         if let Some(mut proc) = self.sessions.remove(id) {
-            proc.child
-                .kill()
-                .map_err(|e| format!("终止终端失败: {}", e))?;
+            proc.child.kill()?;
         }
         Ok(())
     }
@@ -161,6 +218,31 @@ impl TerminalManager {
 }
 
 pub type SharedTerminalManager = Arc<Mutex<TerminalManager>>;
+
+fn spawn_output_thread<R>(app: AppHandle, session_id: String, mut reader: R)
+where
+    R: Read + Send + 'static,
+{
+    std::thread::spawn(move || {
+        let mut buf = [0u8; 8192];
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let data = String::from_utf8_lossy(&buf[..n]).to_string();
+                    let _ = app.emit(
+                        "terminal-output",
+                        TerminalOutputEvent {
+                            session_id: session_id.clone(),
+                            data,
+                        },
+                    );
+                }
+                Err(_) => break,
+            }
+        }
+    });
+}
 
 fn shell_path() -> String {
     std::env::var("ComSpec")

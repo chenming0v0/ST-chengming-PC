@@ -40,7 +40,13 @@ pub fn App() -> impl IntoView {
         });
     };
 
-    bind_backend_events(active_session, set_current_stage, set_progress, set_logs);
+    bind_backend_events(
+        active_session,
+        set_current_stage,
+        set_progress,
+        set_logs,
+        set_status,
+    );
     refresh_status();
 
     let on_install = Callback::new(move |_| {
@@ -102,7 +108,7 @@ pub fn App() -> impl IntoView {
         }
         set_status.set(ServerStatus::Starting);
         set_page.set(Page::Terminal);
-        add_log("> npm install && npm start".to_string());
+        add_log("> npm install && node server.js --browserLaunchEnabled=false".to_string());
         add_log("[启动器] 正在启动 SillyTavern 服务...".to_string());
 
         spawn_local(async move {
@@ -110,8 +116,7 @@ pub fn App() -> impl IntoView {
             match tauri_invoke_string("start_tavern", &args).await {
                 Ok(session_id) => {
                     set_active_session.set(Some(session_id));
-                    set_status.set(ServerStatus::Running);
-                    add_log("[OK] SillyTavern 启动命令已发送到内联终端。".to_string());
+                    add_log("[启动器] SillyTavern 启动命令已发送，等待服务监听成功。".to_string());
                 }
                 Err(error) => {
                     set_status.set(ServerStatus::Stopped);
@@ -214,6 +219,7 @@ fn bind_backend_events(
     set_current_stage: WriteSignal<String>,
     set_progress: WriteSignal<u32>,
     set_logs: WriteSignal<Vec<String>>,
+    set_status: WriteSignal<ServerStatus>,
 ) {
     spawn_local(async move {
         if !tauri_available() {
@@ -252,6 +258,9 @@ fn bind_backend_events(
                     set_logs.update(|items| {
                         for line in payload.data.replace("\r\n", "\n").split('\n') {
                             if !line.is_empty() {
+                                if is_tavern_ready_line(line) {
+                                    set_status.set(ServerStatus::Running);
+                                }
                                 items.push(line.to_string());
                             }
                         }
@@ -262,4 +271,13 @@ fn bind_backend_events(
         let _ = listen("terminal-output", terminal_handler.as_ref().unchecked_ref()).await;
         terminal_handler.forget();
     });
+}
+
+fn is_tavern_ready_line(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    lower.contains("sillytavern is listening")
+        || lower.contains("server is listening")
+        || lower.contains("listening on")
+        || lower.contains("http://127.0.0.1:8000")
+        || lower.contains("http://localhost:8000")
 }
