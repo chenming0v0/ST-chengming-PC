@@ -1,6 +1,8 @@
 mod app;
 mod components;
 mod model;
+#[cfg(test)]
+mod style_tests;
 mod tauri_api;
 
 use app::*;
