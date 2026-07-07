@@ -18,9 +18,16 @@ release:
     - name: build tauri msi
       runner:
         namespace: group
+        cpus: 2
         tags:
           - windows
       stages:
+        - name: verify windows runner
+          script: |
+            ver
+            systeminfo | findstr /B /C:"OS Name" /C:"OS Version"
+            where msbuild
+            powershell -Command "Get-ComputerInfo | Select-Object WindowsVersion, OsArchitecture"
         - name: prepare toolchain
           script: |
             rustup target add wasm32-unknown-unknown
@@ -36,9 +43,16 @@ release:
     - name: build tagged tauri msi
       runner:
         namespace: group
+        cpus: 2
         tags:
           - windows
       stages:
+        - name: verify windows runner
+          script: |
+            ver
+            systeminfo | findstr /B /C:"OS Name" /C:"OS Version"
+            where msbuild
+            powershell -Command "Get-ComputerInfo | Select-Object WindowsVersion, OsArchitecture"
         - name: prepare toolchain
           script: |
             rustup target add wasm32-unknown-unknown
