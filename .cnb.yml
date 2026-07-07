@@ -1,0 +1,49 @@
+release:
+  push:
+    - name: auto tag release
+      stages:
+        - name: generate semantic release tag
+          image: cnbcool/git-auto-tag:latest
+          settings:
+            branch: release
+            tagFormat: v${version}
+            blockWhenFail: false
+            toFile: auto_tag.json
+          exports:
+            tag: RELEASE_TAG
+        - name: print tag result
+          script: |
+            echo "Generated tag: ${RELEASE_TAG}"
+            test -f auto_tag.json && cat auto_tag.json || true
+
+    - name: build tauri msi
+      runner:
+        tags:
+          - windows
+      stages:
+        - name: prepare toolchain
+          script: |
+            rustup target add wasm32-unknown-unknown
+            cargo install trunk --locked
+            cargo install tauri-cli --version "^2.0" --locked
+        - name: install node metadata
+          script: npm ci
+        - name: build msi
+          script: cargo tauri build
+
+"$":
+  tag_push:
+    - name: build tagged tauri msi
+      runner:
+        tags:
+          - windows
+      stages:
+        - name: prepare toolchain
+          script: |
+            rustup target add wasm32-unknown-unknown
+            cargo install trunk --locked
+            cargo install tauri-cli --version "^2.0" --locked
+        - name: install node metadata
+          script: npm ci
+        - name: build msi
+          script: cargo tauri build
