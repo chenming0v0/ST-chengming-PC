@@ -14,51 +14,17 @@ release:
           script: |
             echo "Generated tag: ${RELEASE_TAG}"
             test -f auto_tag.json && cat auto_tag.json || true
-
-    - name: build tauri msi
-      runner:
-        namespace: group
-        cpus: 2
-        tags:
-          - windows
+    - name: github windows build handoff
       stages:
-        - name: verify windows runner
+        - name: explain artifact handoff
           script: |
-            ver
-            systeminfo | findstr /B /C:"OS Name" /C:"OS Version"
-            where msbuild
-            powershell -Command "Get-ComputerInfo | Select-Object WindowsVersion, OsArchitecture"
-        - name: prepare toolchain
-          script: |
-            rustup target add wasm32-unknown-unknown
-            cargo install trunk --locked
-            cargo install tauri-cli --version "^2.0" --locked
-        - name: install node metadata
-          script: npm ci
-        - name: build msi
-          script: cargo tauri build
+            echo "Windows installers are built by GitHub Actions on windows-latest."
+            echo "After the GitHub build finishes, it uploads the MSI/EXE artifacts to CNB release attachments."
 
 "$":
   tag_push:
-    - name: build tagged tauri msi
-      runner:
-        namespace: group
-        cpus: 2
-        tags:
-          - windows
+    - name: github windows release handoff
       stages:
-        - name: verify windows runner
+        - name: explain tag release handoff
           script: |
-            ver
-            systeminfo | findstr /B /C:"OS Name" /C:"OS Version"
-            where msbuild
-            powershell -Command "Get-ComputerInfo | Select-Object WindowsVersion, OsArchitecture"
-        - name: prepare toolchain
-          script: |
-            rustup target add wasm32-unknown-unknown
-            cargo install trunk --locked
-            cargo install tauri-cli --version "^2.0" --locked
-        - name: install node metadata
-          script: npm ci
-        - name: build msi
-          script: cargo tauri build
+            echo "Tag detected. GitHub Actions builds the Windows installer and syncs it back to CNB release attachments."

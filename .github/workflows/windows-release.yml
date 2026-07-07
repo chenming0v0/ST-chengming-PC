@@ -1,0 +1,175 @@
+name: Windows Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - release
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  CNB_REPO_SLUG: clya.top/STChengmingofPC
+
+jobs:
+  build-windows:
+    name: Build Windows installer
+    runs-on: windows-latest
+
+    outputs:
+      release_tag: ${{ steps.version.outputs.release_tag }}
+      artifact_name: ${{ steps.package.outputs.artifact_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release version
+        id: version
+        shell: pwsh
+        run: |
+          $config = Get-Content -Raw src-tauri/tauri.conf.json | ConvertFrom-Json
+          if ($env:GITHUB_REF -like "refs/tags/*") {
+            $tag = $env:GITHUB_REF_NAME
+          } else {
+            $tag = "v$($config.version)"
+          }
+          "release_tag=$tag" >> $env:GITHUB_OUTPUT
+          "app_version=$($config.version)" >> $env:GITHUB_OUTPUT
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend metadata
+        run: npm ci
+
+      - name: Install Tauri build tools
+        run: |
+          cargo install trunk --locked
+          cargo install tauri-cli --version "^2.0" --locked
+
+      - name: Build installer
+        run: npm run build
+
+      - name: Collect installer artifacts
+        id: package
+        shell: pwsh
+        run: |
+          $artifactName = "windows-installers-$env:RELEASE_TAG"
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          $files = Get-ChildItem src-tauri/target/release/bundle -Recurse -File -Include *.msi,*.exe
+          if (-not $files) {
+            Write-Error "No .msi or .exe files were produced by the Tauri build."
+            exit 1
+          }
+          $files | ForEach-Object { Copy-Item $_.FullName artifacts/ }
+          Get-ChildItem artifacts | ForEach-Object { Write-Host "Prepared artifact: $($_.Name)" }
+          "artifact_name=$artifactName" >> $env:GITHUB_OUTPUT
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+        run: |
+          gh release view $env:RELEASE_TAG *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:RELEASE_TAG --target $env:GITHUB_SHA --title "Release $env:RELEASE_TAG" --notes "Windows installer build for $env:RELEASE_TAG." *> $null
+            if ($LASTEXITCODE -ne 0) {
+              gh release view $env:RELEASE_TAG
+            }
+          }
+          gh release upload $env:RELEASE_TAG artifacts/* --clobber
+
+  sync-cnb:
+    name: Sync installer to CNB
+    runs-on: ubuntu-latest
+    needs: build-windows
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Windows installers
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build-windows.outputs.artifact_name }}
+          path: cnb-artifacts
+
+      - name: Mirror release tag to CNB
+        shell: bash
+        env:
+          CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
+          RELEASE_TAG: ${{ needs.build-windows.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CNB_TOKEN}" ]; then
+            echo "::warning::CNB_TOKEN is not configured; skipping CNB tag mirror."
+            exit 0
+          fi
+          git remote add cnb "https://cnb:${CNB_TOKEN}@cnb.cool/${CNB_REPO_SLUG}.git"
+          git ls-remote --heads cnb release >/dev/null
+          git push cnb "HEAD:refs/heads/release" || echo "::warning::Could not fast-forward CNB release branch; continuing with tag mirror."
+          if ! git ls-remote --exit-code --tags cnb "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            git tag -f "${RELEASE_TAG}" "${GITHUB_SHA}"
+            git push cnb "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+          fi
+
+      - name: Upload installers to CNB release
+        shell: bash
+        env:
+          CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
+          RELEASE_TAG: ${{ needs.build-windows.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CNB_TOKEN}" ]; then
+            echo "::warning::CNB_TOKEN is not configured; skipping CNB attachment upload."
+            exit 0
+          fi
+          find cnb-artifacts -maxdepth 2 -type f -print
+          for attempt in 1 2 3 4 5 6; do
+            docker run --rm \
+              -e TZ=Asia/Shanghai \
+              -e CNB_TOKEN="${CNB_TOKEN}" \
+              -e CNB_API_ENDPOINT=https://api.cnb.cool \
+              -e CNB_WEB_ENDPOINT=https://cnb.cool \
+              -e CNB_REPO_SLUG="${CNB_REPO_SLUG}" \
+              -e CNB_IS_TAG=true \
+              -e PLUGIN_TAG="${RELEASE_TAG}" \
+              -e PLUGIN_ATTACHMENTS="./cnb-artifacts/*" \
+              -v "${PWD}:${PWD}" \
+              -w "${PWD}" \
+              cnbcool/attachments:latest && exit 0
+            echo "CNB upload attempt ${attempt} failed; retrying in 20 seconds..."
+            sleep 20
+          done
+          echo "CNB attachment upload failed after retries."
+          exit 1
