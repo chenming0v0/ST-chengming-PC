@@ -38,7 +38,7 @@ pub fn InstallPage(
                 </div>
                 <div class="option-card">
                     <p>"安装路径"</p>
-                    <div class="path-row"><input value="程序所在目录" readonly /><button type="button">"固定"</button></div>
+                    <div class="path-row"><input value="桌面\\chengming\\SillyTavern" readonly /><button type="button">"固定"</button></div>
                 </div>
             </div>
 

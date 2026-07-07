@@ -186,4 +186,14 @@ mod tests {
             "npm install && node server.js --browserLaunchEnabled=false"
         );
     }
+
+    #[test]
+    fn tavern_dir_uses_silly_tavern_folder_under_data_root() {
+        let data_root = PathBuf::from(r"C:\Users\HEI\Desktop\chengming");
+
+        assert_eq!(
+            tavern_dir(&data_root),
+            PathBuf::from(r"C:\Users\HEI\Desktop\chengming\SillyTavern")
+        );
+    }
 }
