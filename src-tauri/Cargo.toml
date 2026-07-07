@@ -1,6 +1,6 @@
 [package]
 name = "st-of-chengming"
-version = "1.0.1"
+version = "1.0.2"
 description = "A Tauri App"
 authors = ["chengming"]
 edition = "2021"
