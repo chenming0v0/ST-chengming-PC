@@ -154,6 +154,76 @@ jobs:
             git push cnb "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
           fi
 
+      - name: Ensure CNB release exists
+        shell: bash
+        env:
+          CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
+          RELEASE_TAG: ${{ needs.build-windows.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CNB_TOKEN}" ]; then
+            echo "::warning::CNB_TOKEN is not configured; skipping CNB release creation."
+            exit 0
+          fi
+
+          release_url="https://api.cnb.cool/${CNB_REPO_SLUG}/-/releases/tags/${RELEASE_TAG}"
+          status="$(curl -sS -o cnb-release.json -w "%{http_code}" \
+            -H "Accept: application/vnd.cnb.api+json" \
+            -H "Authorization: Bearer ${CNB_TOKEN}" \
+            "${release_url}")"
+
+          if [ "${status}" = "200" ]; then
+            echo "CNB release ${RELEASE_TAG} already exists."
+            exit 0
+          fi
+
+          if [ "${status}" != "404" ]; then
+            echo "Failed to check CNB release ${RELEASE_TAG}; status ${status}."
+            cat cnb-release.json
+            exit 1
+          fi
+
+          python3 - <<'PY' > cnb-release-payload.json
+          import json
+          import os
+
+          tag = os.environ["RELEASE_TAG"]
+          payload = {
+              "tag_name": tag,
+              "target_commitish": os.environ["GITHUB_SHA"],
+              "name": f"Release {tag}",
+              "body": (
+                  "Windows installer build synced from GitHub Actions: "
+                  f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+              ),
+              "draft": False,
+              "prerelease": False,
+              "make_latest": "true",
+          }
+          print(json.dumps(payload))
+          PY
+
+          create_status="$(curl -sS -o cnb-release-create.json -w "%{http_code}" \
+            -X POST "https://api.cnb.cool/${CNB_REPO_SLUG}/-/releases" \
+            -H "Accept: application/vnd.cnb.api+json" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${CNB_TOKEN}" \
+            --data @cnb-release-payload.json)"
+
+          case "${create_status}" in
+            200|201)
+              echo "Created CNB release ${RELEASE_TAG}."
+              ;;
+            409)
+              echo "CNB release ${RELEASE_TAG} was created by another run."
+              ;;
+            *)
+              echo "Failed to create CNB release ${RELEASE_TAG}; status ${create_status}."
+              cat cnb-release-create.json
+              exit 1
+              ;;
+          esac
+
       - name: Upload installers to CNB release
         shell: bash
         env:
