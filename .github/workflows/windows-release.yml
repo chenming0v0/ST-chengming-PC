@@ -73,7 +73,18 @@ jobs:
         run: |
           $artifactName = "windows-installers-$env:RELEASE_TAG"
           New-Item -ItemType Directory -Force artifacts | Out-Null
-          $files = Get-ChildItem src-tauri/target/release/bundle -Recurse -File -Include *.msi,*.exe
+          $bundleRoots = @(
+            "target/release/bundle",
+            "src-tauri/target/release/bundle"
+          )
+          $existingRoots = $bundleRoots | Where-Object { Test-Path $_ }
+          if (-not $existingRoots) {
+            Write-Host "No known Tauri bundle directory exists. Current target directories:"
+            Get-ChildItem -Path target,src-tauri/target -Directory -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+          }
+          $files = @($existingRoots | ForEach-Object {
+            Get-ChildItem -Path $_ -Recurse -File -Include *.msi,*.exe
+          })
           if (-not $files) {
             Write-Error "No .msi or .exe files were produced by the Tauri build."
             exit 1
