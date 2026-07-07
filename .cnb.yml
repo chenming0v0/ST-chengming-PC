@@ -17,6 +17,7 @@ release:
 
     - name: build tauri msi
       runner:
+        namespace: group
         tags:
           - windows
       stages:
@@ -34,6 +35,7 @@ release:
   tag_push:
     - name: build tagged tauri msi
       runner:
+        namespace: group
         tags:
           - windows
       stages:
