@@ -237,6 +237,9 @@ jobs:
           fi
           find cnb-artifacts -maxdepth 2 -type f -print
           for attempt in 1 2 3 4 5 6; do
+            command_marker="cnb_attachments_${attempt}_${GITHUB_RUN_ID}"
+            echo "::stop-commands::${command_marker}"
+            set +e
             docker run --rm \
               -e TZ=Asia/Shanghai \
               -e CNB_TOKEN="${CNB_TOKEN}" \
@@ -248,7 +251,13 @@ jobs:
               -e PLUGIN_ATTACHMENTS="./cnb-artifacts/*" \
               -v "${PWD}:${PWD}" \
               -w "${PWD}" \
-              cnbcool/attachments:latest && exit 0
+              cnbcool/attachments:latest
+            upload_status="$?"
+            set -e
+            echo "::${command_marker}::"
+            if [ "${upload_status}" -eq 0 ]; then
+              exit 0
+            fi
             echo "CNB upload attempt ${attempt} failed; retrying in 20 seconds..."
             sleep 20
           done
