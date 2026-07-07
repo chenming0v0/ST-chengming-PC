@@ -6,7 +6,6 @@ release:
           image: cnbcool/git-auto-tag:latest
           settings:
             branch: release
-            tagFormat: v${version}
             blockWhenFail: false
             toFile: auto_tag.json
           exports:
