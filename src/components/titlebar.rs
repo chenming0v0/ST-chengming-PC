@@ -3,7 +3,7 @@ use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
 #[component]
-pub fn TitleBar() -> impl IntoView {
+pub fn TitleBar(on_close: Callback<()>) -> impl IntoView {
     let start_dragging = move |_| {
         spawn_local(async move {
             let _ = tauri_invoke::<()>("window_start_dragging", &empty_args()).await;
@@ -20,9 +20,7 @@ pub fn TitleBar() -> impl IntoView {
         });
     };
     let close = move |_| {
-        spawn_local(async move {
-            let _ = tauri_invoke::<()>("window_close", &empty_args()).await;
-        });
+        on_close.run(());
     };
     let stop_titlebar_drag = move |ev: leptos::ev::MouseEvent| {
         ev.stop_propagation();

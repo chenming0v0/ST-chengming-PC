@@ -1,5 +1,6 @@
-use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 use crate::process_runner;
 use crate::runtime::RuntimePaths;
@@ -50,28 +51,30 @@ async fn read_version(st_dir: &Path) -> Result<String, String> {
     let content = tokio::fs::read_to_string(&pkg_json)
         .await
         .map_err(|e| format!("读取 package.json 失败: {}", e))?;
-    let json: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| format!("解析 package.json 失败: {}", e))?;
+    let json: serde_json::Value =
+        serde_json::from_str(&content).map_err(|e| format!("解析 package.json 失败: {}", e))?;
     json.get("version")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
         .ok_or_else(|| "package.json 中无 version 字段".to_string())
 }
 
-pub async fn install(install_dir: &Path, runtime: &RuntimePaths) -> Result<String, String> {
+pub async fn install_with_env(
+    install_dir: &Path,
+    runtime: &RuntimePaths,
+    env: &HashMap<String, String>,
+) -> Result<String, String> {
     let st_dir = tavern_dir(install_dir);
 
     if st_dir.exists() {
         return Err("SillyTavern 目录已存在，请先卸载或使用更新功能".to_string());
     }
 
-    let env = runtime.env_vars();
-
     let output = process_runner::hidden_tokio_command(&runtime.git_exe)
         .arg("clone")
         .arg(ST_REPO)
         .arg(&st_dir)
-        .envs(&env)
+        .envs(env)
         .output()
         .await
         .map_err(|e| format!("执行 git clone 失败: {}", e))?;
@@ -84,7 +87,7 @@ pub async fn install(install_dir: &Path, runtime: &RuntimePaths) -> Result<Strin
     let npm_install = process_runner::hidden_tokio_command(&runtime.npm_cmd)
         .arg("install")
         .current_dir(&st_dir)
-        .envs(&env)
+        .envs(env)
         .output()
         .await
         .map_err(|e| format!("执行 npm install 失败: {}", e))?;
@@ -94,23 +97,27 @@ pub async fn install(install_dir: &Path, runtime: &RuntimePaths) -> Result<Strin
         return Err(format!("npm install 失败: {}", stderr));
     }
 
-    let version = read_version(&st_dir).await.unwrap_or_else(|_| "unknown".to_string());
+    let version = read_version(&st_dir)
+        .await
+        .unwrap_or_else(|_| "unknown".to_string());
     Ok(format!("SillyTavern {} 安装成功", version))
 }
 
-pub async fn update(install_dir: &Path, runtime: &RuntimePaths) -> Result<String, String> {
+pub async fn update_with_env(
+    install_dir: &Path,
+    runtime: &RuntimePaths,
+    env: &HashMap<String, String>,
+) -> Result<String, String> {
     let st_dir = tavern_dir(install_dir);
 
     if !st_dir.join(".git").exists() {
         return Err("SillyTavern 未安装或不是 git 仓库".to_string());
     }
 
-    let env = runtime.env_vars();
-
     let output = process_runner::hidden_tokio_command(&runtime.git_exe)
         .args(["pull", "--rebase"])
         .current_dir(&st_dir)
-        .envs(&env)
+        .envs(env)
         .output()
         .await
         .map_err(|e| format!("执行 git pull 失败: {}", e))?;
@@ -126,7 +133,7 @@ pub async fn update(install_dir: &Path, runtime: &RuntimePaths) -> Result<String
         let npm_install = process_runner::hidden_tokio_command(&runtime.npm_cmd)
             .arg("install")
             .current_dir(&st_dir)
-            .envs(&env)
+            .envs(env)
             .output()
             .await
             .map_err(|e| format!("执行 npm install 失败: {}", e))?;
@@ -137,8 +144,14 @@ pub async fn update(install_dir: &Path, runtime: &RuntimePaths) -> Result<String
         }
     }
 
-    let version = read_version(&st_dir).await.unwrap_or_else(|_| "unknown".to_string());
-    Ok(format!("SillyTavern 已更新到 {}\n{}", version, pull_msg.trim()))
+    let version = read_version(&st_dir)
+        .await
+        .unwrap_or_else(|_| "unknown".to_string());
+    Ok(format!(
+        "SillyTavern 已更新到 {}\n{}",
+        version,
+        pull_msg.trim()
+    ))
 }
 
 #[cfg(test)]

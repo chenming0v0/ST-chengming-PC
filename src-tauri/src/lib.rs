@@ -1,13 +1,22 @@
 mod commands;
+mod events;
 mod paths;
 mod process_runner;
 mod runtime;
+mod runtime_commands;
+mod runtime_download;
 #[cfg(test)]
 mod runtime_tests;
+mod settings;
+#[cfg(test)]
+mod settings_tests;
 mod tavern;
 mod terminal;
+mod window_commands;
 
 use std::sync::{Arc, Mutex};
+use tauri::tray::{TrayIconBuilder, TrayIconEvent};
+use tauri::Manager;
 use terminal::TerminalManager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -17,9 +26,31 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(term_mgr)
+        .setup(|app| {
+            let handle = app.handle().clone();
+            if let Some(icon) = app.default_window_icon().cloned() {
+                TrayIconBuilder::new()
+                    .tooltip("SillyTavern 启动器")
+                    .icon(icon)
+                    .show_menu_on_left_click(false)
+                    .on_tray_icon_event(move |_tray, event| match event {
+                        TrayIconEvent::Click { .. } | TrayIconEvent::DoubleClick { .. } => {
+                            if let Some(window) = handle.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                        _ => {}
+                    })
+                    .build(app)?;
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
-            commands::get_runtime_status,
-            commands::install_runtime,
+            runtime_commands::get_runtime_status,
+            runtime_commands::install_runtime,
+            commands::get_launcher_settings,
+            commands::save_launcher_settings,
             commands::get_tavern_status,
             commands::install_tavern,
             commands::update_tavern,
@@ -28,10 +59,11 @@ pub fn run() {
             commands::terminal_write,
             commands::terminal_kill,
             commands::terminal_list,
-            commands::window_minimize,
-            commands::window_toggle_maximize,
-            commands::window_close,
-            commands::window_start_dragging,
+            window_commands::window_minimize,
+            window_commands::window_hide,
+            window_commands::window_toggle_maximize,
+            window_commands::window_close,
+            window_commands::window_start_dragging,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

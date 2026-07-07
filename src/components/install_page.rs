@@ -113,3 +113,22 @@ fn stage_matches(stage: &str, index: usize) -> bool {
         _ => false,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    const INSTALL_PAGE_SOURCE: &str = include_str!("install_page.rs");
+
+    #[test]
+    fn git_step_icon_asset_exists() {
+        assert!(
+            INSTALL_PAGE_SOURCE.contains("(\"安装 Git\", \"下载并配置 Portable Git\", \"git\")"),
+            "the Git installation step should keep a dedicated git icon key"
+        );
+        assert!(
+            Path::new("desktop-launcher/assets/icons/vercel/git.svg").is_file(),
+            "the Git installation step references git.svg, so the copied asset must exist"
+        );
+    }
+}

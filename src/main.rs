@@ -1,6 +1,10 @@
 mod app;
+mod backend_events;
 mod components;
+mod launcher_settings_api;
 mod model;
+#[cfg(test)]
+mod settings_model_tests;
 #[cfg(test)]
 mod style_tests;
 mod tauri_api;

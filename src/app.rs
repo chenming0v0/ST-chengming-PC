@@ -1,13 +1,14 @@
+use crate::backend_events::bind_backend_events;
 use crate::components::{InstallPage, LaunchPage, SettingsPage, Sidebar, TerminalPage, TitleBar};
+use crate::launcher_settings_api;
 use crate::model::{
-    Page, ProgressPayload, RuntimeStatus, ServerStatus, TavernStatus, TerminalOutputPayload,
+    CloseAction, LauncherSettings, Page, RuntimeStatus, ServerStatus, TavernStatus,
 };
 use crate::tauri_api::{
-    command_args, empty_args, listen, tauri_available, tauri_invoke, tauri_invoke_string,
+    command_args, empty_args, tauri_available, tauri_invoke, tauri_invoke_string,
 };
 use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 
 #[component]
@@ -23,6 +24,9 @@ pub fn App() -> impl IntoView {
     let (current_stage, set_current_stage) = signal("check".to_string());
     let (terminal_input, set_terminal_input) = signal(String::new());
     let (active_session, set_active_session) = signal(Option::<String>::None);
+    let (settings, set_settings) = signal(LauncherSettings::default());
+    let (settings_saved, set_settings_saved) = signal(false);
+    let (settings_error, set_settings_error) = signal(Option::<String>::None);
 
     let add_log = move |message: String| {
         set_logs.update(|items| items.push(message));
@@ -40,6 +44,23 @@ pub fn App() -> impl IntoView {
         });
     };
 
+    let refresh_settings = move || {
+        spawn_local(async move {
+            if !tauri_available() {
+                return;
+            }
+
+            match launcher_settings_api::load_launcher_settings().await {
+                Ok(value) => {
+                    set_dark.set(value.dark_mode);
+                    set_settings.set(value);
+                    set_settings_error.set(None);
+                }
+                Err(error) => set_settings_error.set(Some(error)),
+            }
+        });
+    };
+
     bind_backend_events(
         active_session,
         set_current_stage,
@@ -47,7 +68,31 @@ pub fn App() -> impl IntoView {
         set_logs,
         set_status,
     );
+    Effect::new(move |_| {
+        let language = settings.get().language.as_value();
+        if let Some(document) = web_sys::window().and_then(|window| window.document()) {
+            if let Some(root) = document.document_element() {
+                let _ = root.set_attribute("lang", language);
+            }
+        }
+    });
     refresh_status();
+    refresh_settings();
+
+    let on_save_settings = Callback::new(move |value: LauncherSettings| {
+        set_settings_error.set(None);
+        set_settings_saved.set(false);
+        spawn_local(async move {
+            match launcher_settings_api::save_launcher_settings(value).await {
+                Ok(saved_settings) => {
+                    set_settings.set(saved_settings);
+                    set_settings_saved.set(true);
+                    set_settings_error.set(None);
+                }
+                Err(error) => set_settings_error.set(Some(error)),
+            }
+        });
+    });
 
     let on_install = Callback::new(move |_| {
         if installing.get_untracked() {
@@ -108,12 +153,20 @@ pub fn App() -> impl IntoView {
         }
         set_status.set(ServerStatus::Starting);
         set_page.set(Page::Terminal);
-        add_log("> npm install && node server.js --browserLaunchEnabled=false".to_string());
+        let launch_settings = settings.get_untracked();
+        add_log(format!("> {}", launch_settings.launch_command_preview()));
         add_log("[启动器] 正在启动 SillyTavern 服务...".to_string());
 
         spawn_local(async move {
-            let args = empty_args();
-            match tauri_invoke_string("start_tavern", &args).await {
+            if launch_settings.auto_update {
+                add_log("[启动器] 启动前自动检查更新。".to_string());
+                match launcher_settings_api::update_tavern(&launch_settings).await {
+                    Ok(message) => add_log(format!("[OK] {}", message)),
+                    Err(error) => add_log(format!("[警告] 自动更新失败，继续启动: {}", error)),
+                }
+            }
+
+            match launcher_settings_api::start_tavern(&launch_settings).await {
                 Ok(session_id) => {
                     set_active_session.set(Some(session_id));
                     add_log("[启动器] SillyTavern 启动命令已发送，等待服务监听成功。".to_string());
@@ -136,6 +189,27 @@ pub fn App() -> impl IntoView {
             set_active_session.set(None);
             set_status.set(ServerStatus::Stopped);
             add_log("[启动器] 服务已停止。".to_string());
+        });
+    });
+
+    let on_window_close = Callback::new(move |_| {
+        let close_action = settings.get_untracked().close_action;
+        let session_id = active_session.get_untracked();
+        spawn_local(async move {
+            match close_action {
+                CloseAction::MinimizeToTray => {
+                    let _ = tauri_invoke::<()>("window_hide", &empty_args()).await;
+                }
+                CloseAction::ExitAndStop => {
+                    if let Some(session_id) = session_id {
+                        let args = command_args(&[("sessionId", JsValue::from_str(&session_id))]);
+                        let _ = tauri_invoke::<()>("terminal_kill", &args).await;
+                    }
+                    set_active_session.set(None);
+                    set_status.set(ServerStatus::Stopped);
+                    let _ = tauri_invoke::<()>("window_close", &empty_args()).await;
+                }
+            }
         });
     });
 
@@ -167,7 +241,7 @@ pub fn App() -> impl IntoView {
 
     view! {
         <div class=move || if dark.get() { "app dark" } else { "app" }>
-            <TitleBar />
+            <TitleBar on_close=on_window_close />
             <div class="row">
                 <Sidebar page=page set_page=set_page dark=dark set_dark=set_dark status=status />
                 <main class="main">
@@ -177,7 +251,6 @@ pub fn App() -> impl IntoView {
                                 runtime_status=runtime_status
                                 tavern_status=tavern_status
                                 status=status
-                                set_page=set_page
                                 on_launch=on_launch
                                 on_stop=on_stop
                             />
@@ -206,78 +279,21 @@ pub fn App() -> impl IntoView {
                                 installed=installed
                             />
                         }.into_any(),
-                        Page::Settings => view! { <SettingsPage dark=dark set_dark=set_dark /> }.into_any(),
+                        Page::Settings => view! {
+                            <SettingsPage
+                                dark=dark
+                                set_dark=set_dark
+                                settings=settings
+                                set_settings=set_settings
+                                saved=settings_saved
+                                set_saved=set_settings_saved
+                                save_error=settings_error
+                                on_save=on_save_settings
+                            />
+                        }.into_any(),
                     }}
                 </main>
             </div>
         </div>
     }
-}
-
-fn bind_backend_events(
-    active_session: ReadSignal<Option<String>>,
-    set_current_stage: WriteSignal<String>,
-    set_progress: WriteSignal<u32>,
-    set_logs: WriteSignal<Vec<String>>,
-    set_status: WriteSignal<ServerStatus>,
-) {
-    spawn_local(async move {
-        if !tauri_available() {
-            return;
-        }
-
-        let install_handler = Closure::<dyn FnMut(JsValue)>::new(move |event: JsValue| {
-            let payload = js_sys::Reflect::get(&event, &JsValue::from_str("payload"))
-                .ok()
-                .and_then(|value| serde_wasm_bindgen::from_value::<ProgressPayload>(value).ok());
-            if let Some(payload) = payload {
-                set_current_stage.set(payload.stage.clone());
-                set_progress.set(payload.percent);
-                set_logs.update(|items| {
-                    items.push(format!(
-                        "[{}:{}%] {}",
-                        payload.stage, payload.percent, payload.message
-                    ))
-                });
-            }
-        });
-        let _ = listen("install-progress", install_handler.as_ref().unchecked_ref()).await;
-        install_handler.forget();
-
-        let terminal_handler = Closure::<dyn FnMut(JsValue)>::new(move |event: JsValue| {
-            let payload = js_sys::Reflect::get(&event, &JsValue::from_str("payload"))
-                .ok()
-                .and_then(|value| serde_wasm_bindgen::from_value::<TerminalOutputPayload>(value).ok());
-            if let Some(payload) = payload {
-                let show = active_session
-                    .get_untracked()
-                    .as_deref()
-                    .map(|id| id == payload.session_id)
-                    .unwrap_or(true);
-                if show {
-                    set_logs.update(|items| {
-                        for line in payload.data.replace("\r\n", "\n").split('\n') {
-                            if !line.is_empty() {
-                                if is_tavern_ready_line(line) {
-                                    set_status.set(ServerStatus::Running);
-                                }
-                                items.push(line.to_string());
-                            }
-                        }
-                    });
-                }
-            }
-        });
-        let _ = listen("terminal-output", terminal_handler.as_ref().unchecked_ref()).await;
-        terminal_handler.forget();
-    });
-}
-
-fn is_tavern_ready_line(line: &str) -> bool {
-    let lower = line.to_ascii_lowercase();
-    lower.contains("sillytavern is listening")
-        || lower.contains("server is listening")
-        || lower.contains("listening on")
-        || lower.contains("http://127.0.0.1:8000")
-        || lower.contains("http://localhost:8000")
 }

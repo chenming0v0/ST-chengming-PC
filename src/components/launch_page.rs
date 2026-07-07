@@ -1,4 +1,4 @@
-use crate::model::{RuntimeStatus, Page, ServerStatus, TavernStatus};
+use crate::model::{RuntimeStatus, ServerStatus, TavernStatus};
 use leptos::prelude::*;
 
 #[component]
@@ -6,7 +6,6 @@ pub fn LaunchPage(
     runtime_status: ReadSignal<RuntimeStatus>,
     tavern_status: ReadSignal<TavernStatus>,
     status: ReadSignal<ServerStatus>,
-    set_page: WriteSignal<Page>,
     on_launch: Callback<()>,
     on_stop: Callback<()>,
 ) -> impl IntoView {
@@ -88,15 +87,9 @@ pub fn LaunchPage(
                                     <button
                                         type="button"
                                         class="cta btn-p"
-                                        on:click=move |_| {
-                                            if installed {
-                                                on_launch.run(());
-                                            } else {
-                                                set_page.set(Page::Install);
-                                            }
-                                        }
+                                        on:click=move |_| on_launch.run(())
                                     >
-                                        "一键启动"
+                                        {if installed { "一键启动" } else { "一键安装" }}
                                     </button>
                                 }.into_any()
                             }
@@ -113,17 +106,47 @@ pub fn LaunchPage(
                                 </button>
                             }.into_any(),
                         }}
-                        {move || if status.get() == ServerStatus::Running {
-                            view! { <p class="running-url">"● 服务运行中 — http://127.0.0.1:8000"</p> }.into_any()
-                        } else {
-                            view! {}.into_any()
-                        }}
-                        <button type="button" class="btn install-entry" on:click=move |_| set_page.set(Page::Install)>
-                            "前往安装（未安装态入口）"
-                        </button>
                     </div>
                 </aside>
             </div>
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    const LAUNCH_PAGE_SOURCE: &str = include_str!("launch_page.rs");
+
+    #[test]
+    fn launch_action_collapses_install_entry_into_primary_button() {
+        let production_source = LAUNCH_PAGE_SOURCE
+            .split("#[cfg(test)]")
+            .next()
+            .expect("launch page source should contain production code");
+
+        assert!(
+            production_source.contains("\"一键安装\""),
+            "uninstalled launch page should label the primary action as one-click install"
+        );
+        assert!(
+            production_source.contains("\"一键启动\""),
+            "installed launch page should keep the primary action label as one-click launch"
+        );
+        assert!(
+            !production_source.contains("install-entry"),
+            "launch page should not render a secondary install entry"
+        );
+        assert!(
+            !production_source.contains("前往安装"),
+            "launch page should not render the old go-to-install button"
+        );
+        assert!(
+            !production_source.contains("running-url"),
+            "launch page should not render the running service URL hint"
+        );
+        assert!(
+            !production_source.contains("服务运行中"),
+            "launch page should not render the running service copy"
+        );
     }
 }

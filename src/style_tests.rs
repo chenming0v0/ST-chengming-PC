@@ -33,6 +33,24 @@ fn launch_shell_uses_theme_variables_for_light_mode_surfaces() {
     assert!(css_rule(".btn").contains("color: var(--button-text);"));
 }
 
+#[test]
+fn install_actions_align_primary_button_to_the_right() {
+    let rule = css_rule(".install-actions");
+
+    assert!(rule.contains("display: flex;"));
+    assert!(rule.contains("justify-content: flex-end;"));
+}
+
+#[test]
+fn launch_action_stays_same_size_and_sits_near_bottom_edge() {
+    let cta_rule = css_rule(".cta");
+    let launch_page_rule = css_rule(".page-launch");
+
+    assert!(cta_rule.contains("min-height: 52px;"));
+    assert!(cta_rule.contains("padding: 14px;"));
+    assert!(launch_page_rule.contains("padding-bottom: 12px;"));
+}
+
 fn css_rule(selector: &str) -> &str {
     let start = APP_STYLES
         .rfind(&format!("{selector} {{"))

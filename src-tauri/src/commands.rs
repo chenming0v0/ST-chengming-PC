@@ -1,6 +1,8 @@
+use crate::events::ProgressEvent;
 use crate::paths;
 use crate::process_runner;
 use crate::runtime::{self, RuntimePaths};
+use crate::settings::{self, LauncherSettings};
 use crate::tavern;
 use crate::terminal::SharedTerminalManager;
 use crate::terminal::TerminalSession;
@@ -8,21 +10,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tauri::{Emitter, State};
-
-#[derive(Clone, Serialize)]
-pub struct ProgressEvent {
-    pub stage: String,
-    pub percent: u32,
-    pub message: String,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct RuntimeStatus {
-    pub node_installed: bool,
-    pub git_installed: bool,
-    pub node_version: Option<String>,
-    pub git_version: Option<String>,
-}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TavernStatus {
@@ -32,55 +19,21 @@ pub struct TavernStatus {
     pub running: bool,
 }
 
-// --- Runtime Commands ---
+// --- Launcher Settings Commands ---
 
 #[tauri::command]
-pub async fn get_runtime_status(app: tauri::AppHandle) -> Result<RuntimeStatus, String> {
+pub async fn get_launcher_settings(app: tauri::AppHandle) -> Result<LauncherSettings, String> {
     let base = get_base_dir(&app)?;
-    let paths = RuntimePaths::new(&base);
-    let env_vars = runtime_env_vars(&paths);
-    Ok(RuntimeStatus {
-        node_installed: paths.node_installed(),
-        git_installed: paths.git_installed(),
-        node_version: detect_version(&paths.node_exe, &env_vars),
-        git_version: detect_version(&paths.git_exe, &env_vars),
-    })
+    settings::load_launcher_settings(&base).await
 }
 
 #[tauri::command]
-pub async fn install_runtime(app: tauri::AppHandle, window: tauri::Window) -> Result<(), String> {
+pub async fn save_launcher_settings(
+    app: tauri::AppHandle,
+    settings: LauncherSettings,
+) -> Result<LauncherSettings, String> {
     let base = get_base_dir(&app)?;
-
-    window.emit("install-progress", ProgressEvent {
-        stage: "node".into(),
-        percent: 0,
-        message: "正在下载 Node.js 24...".into(),
-    }).ok();
-
-    runtime::install_node(&base).await?;
-    runtime::configure_npm(&RuntimePaths::new(&base)).await?;
-
-    window.emit("install-progress", ProgressEvent {
-        stage: "node".into(),
-        percent: 50,
-        message: "Node.js 安装完成".into(),
-    }).ok();
-
-    window.emit("install-progress", ProgressEvent {
-        stage: "git".into(),
-        percent: 50,
-        message: "正在下载 Git...".into(),
-    }).ok();
-
-    runtime::install_git(&base).await?;
-
-    window.emit("install-progress", ProgressEvent {
-        stage: "git".into(),
-        percent: 100,
-        message: "Git 安装完成".into(),
-    }).ok();
-
-    Ok(())
+    settings::save_launcher_settings(&base, settings).await
 }
 
 // --- Tavern Commands ---
@@ -98,49 +51,85 @@ pub async fn get_tavern_status(app: tauri::AppHandle) -> Result<TavernStatus, St
 }
 
 #[tauri::command]
-pub async fn install_tavern(app: tauri::AppHandle, window: tauri::Window) -> Result<String, String> {
+pub async fn install_tavern(
+    app: tauri::AppHandle,
+    window: tauri::Window,
+) -> Result<String, String> {
     let base = get_base_dir(&app)?;
     let paths = RuntimePaths::new(&base);
+    let settings = settings::load_launcher_settings(&base).await?;
 
     if !paths.node_installed() || !paths.git_installed() {
         return Err("请先安装运行时环境 (Node.js + Git)".into());
     }
 
-    window.emit("install-progress", ProgressEvent {
-        stage: "tavern".into(),
-        percent: 0,
-        message: "正在克隆 SillyTavern...".into(),
-    }).ok();
+    window
+        .emit(
+            "install-progress",
+            ProgressEvent {
+                stage: "tavern".into(),
+                percent: 0,
+                message: "正在克隆 SillyTavern...".into(),
+            },
+        )
+        .ok();
 
-    let result = tavern::install(&base, &paths).await?;
+    let mut env_vars = runtime_env_vars(&paths);
+    settings::apply_proxy_env(&mut env_vars, &settings);
+    let result = tavern::install_with_env(&base, &paths, &env_vars).await?;
 
-    window.emit("install-progress", ProgressEvent {
-        stage: "tavern".into(),
-        percent: 100,
-        message: "SillyTavern 安装完成".into(),
-    }).ok();
+    window
+        .emit(
+            "install-progress",
+            ProgressEvent {
+                stage: "tavern".into(),
+                percent: 100,
+                message: "SillyTavern 安装完成".into(),
+            },
+        )
+        .ok();
 
     Ok(result)
 }
 
 #[tauri::command]
-pub async fn update_tavern(app: tauri::AppHandle, window: tauri::Window) -> Result<String, String> {
+pub async fn update_tavern(
+    app: tauri::AppHandle,
+    window: tauri::Window,
+    settings: Option<LauncherSettings>,
+) -> Result<String, String> {
     let base = get_base_dir(&app)?;
     let paths = RuntimePaths::new(&base);
+    let settings = match settings {
+        Some(settings) => settings.normalized()?,
+        None => settings::load_launcher_settings(&base).await?,
+    };
 
-    window.emit("install-progress", ProgressEvent {
-        stage: "update".into(),
-        percent: 0,
-        message: "正在检查更新...".into(),
-    }).ok();
+    window
+        .emit(
+            "install-progress",
+            ProgressEvent {
+                stage: "update".into(),
+                percent: 0,
+                message: "正在检查更新...".into(),
+            },
+        )
+        .ok();
 
-    let result = tavern::update(&base, &paths).await?;
+    let mut env_vars = runtime_env_vars(&paths);
+    settings::apply_proxy_env(&mut env_vars, &settings);
+    let result = tavern::update_with_env(&base, &paths, &env_vars).await?;
 
-    window.emit("install-progress", ProgressEvent {
-        stage: "update".into(),
-        percent: 100,
-        message: format!("更新完成: {}", result),
-    }).ok();
+    window
+        .emit(
+            "install-progress",
+            ProgressEvent {
+                stage: "update".into(),
+                percent: 100,
+                message: format!("更新完成: {}", result),
+            },
+        )
+        .ok();
 
     Ok(result)
 }
@@ -149,10 +138,15 @@ pub async fn update_tavern(app: tauri::AppHandle, window: tauri::Window) -> Resu
 pub async fn start_tavern(
     app: tauri::AppHandle,
     terminal_mgr: State<'_, SharedTerminalManager>,
+    settings: Option<LauncherSettings>,
 ) -> Result<String, String> {
     let base = get_base_dir(&app)?;
     let paths = RuntimePaths::new(&base);
     let st_dir = tavern::tavern_dir(&base);
+    let settings = match settings {
+        Some(settings) => settings.normalized()?,
+        None => settings::load_launcher_settings(&base).await?,
+    };
 
     if !paths.node_installed() || !paths.git_installed() {
         return Err("请先安装运行时环境 (Node.js + Git)".into());
@@ -163,14 +157,18 @@ pub async fn start_tavern(
     }
 
     runtime::configure_npm(&paths).await?;
-    let env_vars = runtime_env_vars(&paths);
+    let mut env_vars = runtime_env_vars(&paths);
+    settings::apply_proxy_env(&mut env_vars, &settings);
     let startup_session = "startup".to_string();
 
     process_runner::run_hidden_command(
         &app,
         &startup_session,
         &paths.node_exe,
-        &[paths.npm_cli_js().to_string_lossy().to_string(), "install".to_string()],
+        &[
+            paths.npm_cli_js().to_string_lossy().to_string(),
+            "install".to_string(),
+        ],
         &st_dir,
         &env_vars,
     )
@@ -183,10 +181,7 @@ pub async fn start_tavern(
         st_dir,
         env_vars,
         paths.node_exe,
-        vec![
-            "server.js".to_string(),
-            "--browserLaunchEnabled=false".to_string(),
-        ],
+        settings::build_tavern_launch_args(&settings),
     )?;
 
     Ok(session_id)
@@ -240,49 +235,10 @@ pub async fn terminal_list(
     Ok(mgr.list_sessions())
 }
 
-// --- Window Commands ---
-
-#[tauri::command]
-pub async fn window_minimize(window: tauri::Window) -> Result<(), String> {
-    window.minimize().map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub async fn window_toggle_maximize(window: tauri::Window) -> Result<(), String> {
-    if window.is_maximized().map_err(|e| e.to_string())? {
-        window.unmaximize().map_err(|e| e.to_string())
-    } else {
-        window.maximize().map_err(|e| e.to_string())
-    }
-}
-
-#[tauri::command]
-pub async fn window_close(window: tauri::Window) -> Result<(), String> {
-    window.close().map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub async fn window_start_dragging(window: tauri::Window) -> Result<(), String> {
-    window.start_dragging().map_err(|e| e.to_string())
-}
-
 // --- Helpers ---
 
 fn get_base_dir(_app: &tauri::AppHandle) -> Result<PathBuf, String> {
     paths::current_app_paths().map(|paths| paths.install_dir)
-}
-
-fn detect_version(exe: &PathBuf, env_vars: &HashMap<String, String>) -> Option<String> {
-    if !exe.exists() {
-        return None;
-    }
-    process_runner::hidden_std_command(exe)
-        .arg("--version")
-        .envs(env_vars)
-        .output()
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.trim().to_string())
 }
 
 fn runtime_env_vars(paths: &RuntimePaths) -> HashMap<String, String> {

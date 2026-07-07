@@ -1,11 +1,10 @@
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use tokio::fs;
-use reqwest::Client;
-use futures_util::StreamExt;
-use serde::{Deserialize, Serialize};
 
 use crate::process_runner;
+use crate::runtime_download::download_file;
 
 pub(crate) const NODE_VERSION: &str = "v24.18.0";
 pub(crate) const NODE_URL: &str =
@@ -34,7 +33,15 @@ impl RuntimePaths {
         let npm_cmd = node_dir.join("npm.cmd");
         let npmrc = base_dir.join("npmrc");
         let git_exe = git_dir.join("cmd").join("git.exe");
-        Self { base_dir, node_dir, git_dir, node_exe, npm_cmd, npmrc, git_exe }
+        Self {
+            base_dir,
+            node_dir,
+            git_dir,
+            node_exe,
+            npm_cmd,
+            npmrc,
+            git_exe,
+        }
     }
 
     pub fn node_installed(&self) -> bool {
@@ -119,60 +126,12 @@ fn preserved_windows_env_vars() -> BTreeMap<String, String> {
         "HOMEPATH",
     ]
     .into_iter()
-    .filter_map(|key| std::env::var(key).ok().map(|value| (key.to_string(), value)))
+    .filter_map(|key| {
+        std::env::var(key)
+            .ok()
+            .map(|value| (key.to_string(), value))
+    })
     .collect()
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DownloadProgress {
-    pub stage: String,
-    pub downloaded: u64,
-    pub total: Option<u64>,
-    pub percent: f64,
-}
-
-pub async fn download_file(
-    url: &str,
-    dest: &Path,
-    on_progress: impl Fn(DownloadProgress),
-) -> Result<(), String> {
-    let client = Client::new();
-    let resp = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| format!("下载请求失败: {}", e))?;
-
-    let total = resp.content_length();
-    let mut stream = resp.bytes_stream();
-
-    if let Some(parent) = dest.parent() {
-        fs::create_dir_all(parent).await.map_err(|e| format!("创建目录失败: {}", e))?;
-    }
-
-    let mut file = fs::File::create(dest)
-        .await
-        .map_err(|e| format!("创建文件失败: {}", e))?;
-
-    let mut downloaded: u64 = 0;
-    use tokio::io::AsyncWriteExt;
-
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| format!("下载数据失败: {}", e))?;
-        file.write_all(&chunk)
-            .await
-            .map_err(|e| format!("写入文件失败: {}", e))?;
-        downloaded += chunk.len() as u64;
-        let percent = total.map(|t| (downloaded as f64 / t as f64) * 100.0).unwrap_or(0.0);
-        on_progress(DownloadProgress {
-            stage: "downloading".to_string(),
-            downloaded,
-            total,
-            percent,
-        });
-    }
-
-    Ok(())
 }
 
 pub async fn install_node(install_dir: &Path) -> Result<RuntimePaths, String> {
@@ -190,7 +149,9 @@ pub async fn install_node(install_dir: &Path) -> Result<RuntimePaths, String> {
 
     extract_zip(&tmp_zip, &paths.base_dir).await?;
 
-    let extracted_dir = paths.base_dir.join(format!("node-{}-win-x64", NODE_VERSION));
+    let extracted_dir = paths
+        .base_dir
+        .join(format!("node-{}-win-x64", NODE_VERSION));
     if extracted_dir.exists() {
         if paths.node_dir.exists() {
             fs::remove_dir_all(&paths.node_dir)
@@ -254,26 +215,25 @@ async fn extract_zip(zip_path: &Path, dest: &Path) -> Result<(), String> {
     let dest = dest.to_path_buf();
 
     tokio::task::spawn_blocking(move || {
-        let file = std::fs::File::open(&zip_path)
-            .map_err(|e| format!("打开 zip 失败: {}", e))?;
-        let mut archive = zip::ZipArchive::new(file)
-            .map_err(|e| format!("解析 zip 失败: {}", e))?;
+        let file = std::fs::File::open(&zip_path).map_err(|e| format!("打开 zip 失败: {}", e))?;
+        let mut archive =
+            zip::ZipArchive::new(file).map_err(|e| format!("解析 zip 失败: {}", e))?;
 
         for i in 0..archive.len() {
-            let mut entry = archive.by_index(i)
+            let mut entry = archive
+                .by_index(i)
                 .map_err(|e| format!("读取 zip 条目失败: {}", e))?;
             let outpath = dest.join(entry.mangled_name());
 
             if entry.is_dir() {
-                std::fs::create_dir_all(&outpath)
-                    .map_err(|e| format!("创建目录失败: {}", e))?;
+                std::fs::create_dir_all(&outpath).map_err(|e| format!("创建目录失败: {}", e))?;
             } else {
                 if let Some(parent) = outpath.parent() {
                     std::fs::create_dir_all(parent)
                         .map_err(|e| format!("创建父目录失败: {}", e))?;
                 }
-                let mut outfile = std::fs::File::create(&outpath)
-                    .map_err(|e| format!("创建文件失败: {}", e))?;
+                let mut outfile =
+                    std::fs::File::create(&outpath).map_err(|e| format!("创建文件失败: {}", e))?;
                 std::io::copy(&mut entry, &mut outfile)
                     .map_err(|e| format!("写入文件失败: {}", e))?;
             }

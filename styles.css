@@ -586,17 +586,6 @@ button:disabled {
   background: #fff;
 }
 
-.running-url {
-  margin: 8px 0 0;
-  color: #059669;
-  text-align: center;
-  font-size: 12px;
-}
-
-.dark .running-url {
-  color: #34d399;
-}
-
 .page-header h1,
 .settings-header h1,
 .terminal-header h1 {
@@ -838,6 +827,7 @@ button:disabled {
 .install-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 12px;
   margin-top: 20px;
   padding-bottom: 16px;
@@ -1539,6 +1529,7 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  padding-bottom: 12px;
 }
 
 .banner {
@@ -1758,22 +1749,6 @@ body {
   border: 0;
   background: #ef4444;
   color: #fff;
-}
-
-.install-entry {
-  width: 100%;
-  min-height: 38px;
-  margin-top: 8px;
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.running-url {
-  margin: 8px 0 0;
-  color: var(--success);
-  text-align: center;
-  font-size: 12px;
 }
 
 @media (max-width: 980px) {
