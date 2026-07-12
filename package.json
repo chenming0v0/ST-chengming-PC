@@ -1,7 +1,7 @@
 {
   "name": "st-of-chengming",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "ST Launcher — Tauri + Leptos (Rust). npm scripts wrap cargo tauri.",
   "scripts": {
     "dev": "cargo tauri dev",
