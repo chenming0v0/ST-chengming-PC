@@ -11,6 +11,7 @@ pub fn bind_backend_events(
     set_progress: WriteSignal<u32>,
     set_logs: WriteSignal<Vec<String>>,
     set_status: WriteSignal<ServerStatus>,
+    set_install_message: WriteSignal<Option<String>>,
 ) {
     spawn_local(async move {
         if !tauri_available() {
@@ -24,6 +25,7 @@ pub fn bind_backend_events(
             if let Some(payload) = payload {
                 set_current_stage.set(payload.stage.clone());
                 set_progress.set(payload.percent);
+                set_install_message.set(Some(payload.message.clone()));
                 set_logs.update(|items| {
                     items.push(format!(
                         "[{}:{}%] {}",

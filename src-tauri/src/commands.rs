@@ -68,15 +68,22 @@ pub async fn install_tavern(
             "install-progress",
             ProgressEvent {
                 stage: "tavern".into(),
-                percent: 0,
-                message: "正在克隆 SillyTavern...".into(),
+                percent: 62,
+                message: format!("正在克隆 SillyTavern 到 {} ...", base.display()),
             },
         )
         .ok();
 
     let mut env_vars = runtime_env_vars(&paths);
     settings::apply_proxy_env(&mut env_vars, &settings);
-    let result = tavern::install_with_env(&base, &paths, &env_vars).await?;
+    let result = tavern::install_with_env(&base, &paths, &env_vars)
+        .await
+        .map_err(|error| {
+            format!(
+                "SillyTavern 安装失败：{error}\n安装目录：{}\n如果长时间无响应，通常是网络或目录权限问题。",
+                base.display()
+            )
+        })?;
 
     window
         .emit(

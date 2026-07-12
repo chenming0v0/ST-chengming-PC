@@ -1628,6 +1628,7 @@ body {
   background: var(--card);
   color: var(--text);
   text-align: left;
+  cursor: pointer;
 }
 
 .fitem:hover {
@@ -1766,4 +1767,101 @@ body {
   .grid-f {
     grid-template-columns: 1fr;
   }
+}
+
+
+/* Shared UI polish */
+.settings-message {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-message.error {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+
+.app.dark .settings-message.error {
+  background: rgba(248, 113, 113, 0.14);
+  color: #fca5a5;
+}
+
+.path-fixed {
+  opacity: 0.75;
+  cursor: default;
+}
+
+.page-terminal {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.page-settings {
+  padding-bottom: 32px;
+}
+
+.page-install {
+  padding-bottom: 28px;
+}
+
+.launch-meta > div + div {
+  margin-top: 4px;
+}
+
+.option-card .path-row input {
+  cursor: default;
+}
+
+
+.install-note,
+.install-message {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.install-note {
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+}
+
+.app.dark .install-note {
+  background: rgba(96, 165, 250, 0.12);
+  color: #93c5fd;
+}
+
+.install-message {
+  background: rgba(16, 185, 129, 0.1);
+  color: #047857;
+  white-space: pre-wrap;
+}
+
+.app.dark .install-message {
+  background: rgba(52, 211, 153, 0.12);
+  color: #6ee7b7;
+}
+
+.install-message.error {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+
+.app.dark .install-message.error {
+  background: rgba(248, 113, 113, 0.14);
+  color: #fca5a5;
+}
+
+.progress-stage {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
 }

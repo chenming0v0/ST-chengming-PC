@@ -2,7 +2,7 @@ use crate::backend_events::bind_backend_events;
 use crate::components::{InstallPage, LaunchPage, SettingsPage, Sidebar, TerminalPage, TitleBar};
 use crate::launcher_settings_api;
 use crate::model::{
-    CloseAction, LauncherSettings, Page, RuntimeStatus, ServerStatus, TavernStatus,
+    AppInfo, CloseAction, LauncherSettings, Page, RuntimeStatus, ServerStatus, TavernStatus,
 };
 use crate::tauri_api::{
     command_args, empty_args, tauri_available, tauri_invoke, tauri_invoke_string,
@@ -27,6 +27,9 @@ pub fn App() -> impl IntoView {
     let (settings, set_settings) = signal(LauncherSettings::default());
     let (settings_saved, set_settings_saved) = signal(false);
     let (settings_error, set_settings_error) = signal(Option::<String>::None);
+    let (install_dir, set_install_dir) = signal(String::new());
+    let (install_note, set_install_note) = signal(String::new());
+    let (install_message, set_install_message) = signal(Option::<String>::None);
 
     let add_log = move |message: String| {
         set_logs.update(|items| items.push(message));
@@ -40,6 +43,10 @@ pub fn App() -> impl IntoView {
             }
             if let Ok(status) = tauri_invoke::<TavernStatus>("get_tavern_status", &args).await {
                 set_tavern_status.set(status);
+            }
+            if let Ok(info) = tauri_invoke::<AppInfo>("get_app_info", &args).await {
+                set_install_dir.set(info.install_dir);
+                set_install_note.set(info.note);
             }
         });
     };
@@ -67,6 +74,7 @@ pub fn App() -> impl IntoView {
         set_progress,
         set_logs,
         set_status,
+        set_install_message,
     );
     Effect::new(move |_| {
         let language = settings.get().language.as_value();
@@ -75,6 +83,14 @@ pub fn App() -> impl IntoView {
                 let _ = root.set_attribute("lang", language);
             }
         }
+    });
+    Effect::new(move |_| {
+        let dark_mode = dark.get();
+        set_settings.update(|value| {
+            if value.dark_mode != dark_mode {
+                value.dark_mode = dark_mode;
+            }
+        });
     });
     refresh_status();
     refresh_settings();
@@ -101,6 +117,7 @@ pub fn App() -> impl IntoView {
         set_installing.set(true);
         set_progress.set(0);
         set_current_stage.set("check".to_string());
+        set_install_message.set(Some("正在检测可写目录并开始安装...".to_string()));
         add_log("[启动器] 开始安装流程。".to_string());
 
         spawn_local(async move {
@@ -109,16 +126,24 @@ pub fn App() -> impl IntoView {
                 Ok(_) => {
                     set_progress.set(60);
                     set_current_stage.set("tavern".to_string());
+                    set_install_message.set(Some("运行时已就绪，正在安装 SillyTavern...".to_string()));
                     match tauri_invoke_string("install_tavern", &args).await {
                         Ok(message) => {
                             add_log(format!("[OK] {}", message));
                             set_progress.set(100);
                             set_current_stage.set("done".to_string());
+                            set_install_message.set(Some(format!("安装完成：{message}")));
                         }
-                        Err(error) => add_log(format!("[错误] 安装 SillyTavern 失败: {}", error)),
+                        Err(error) => {
+                            add_log(format!("[错误] 安装 SillyTavern 失败: {}", error));
+                            set_install_message.set(Some(format!("安装失败：{error}")));
+                        }
                     }
                 }
-                Err(error) => add_log(format!("[错误] 安装运行时失败: {}", error)),
+                Err(error) => {
+                    add_log(format!("[错误] 安装运行时失败: {}", error));
+                    set_install_message.set(Some(format!("安装失败：{error}")));
+                }
             }
             set_installing.set(false);
             refresh_status();
@@ -128,12 +153,19 @@ pub fn App() -> impl IntoView {
     let on_update = Callback::new(move |_| {
         set_installing.set(true);
         set_current_stage.set("tavern".to_string());
+        set_install_message.set(Some("正在检查更新...".to_string()));
         add_log("[启动器] 正在检查更新。".to_string());
         spawn_local(async move {
             let args = empty_args();
             match tauri_invoke_string("update_tavern", &args).await {
-                Ok(message) => add_log(format!("[OK] {}", message)),
-                Err(error) => add_log(format!("[错误] 更新失败: {}", error)),
+                Ok(message) => {
+                    add_log(format!("[OK] {}", message));
+                    set_install_message.set(Some(format!("更新完成：{message}")));
+                }
+                Err(error) => {
+                    add_log(format!("[错误] 更新失败: {}", error));
+                    set_install_message.set(Some(format!("更新失败：{error}")));
+                }
             }
             set_installing.set(false);
             refresh_status();
@@ -259,6 +291,9 @@ pub fn App() -> impl IntoView {
                             <InstallPage
                                 runtime_status=runtime_status
                                 tavern_status=tavern_status
+                                install_dir=install_dir
+                                install_note=install_note
+                                install_message=install_message
                                 installing=installing
                                 progress=progress
                                 current_stage=current_stage

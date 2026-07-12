@@ -1,4 +1,5 @@
 use crate::tauri_api::{empty_args, tauri_invoke};
+use crate::version::app_title;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
@@ -30,7 +31,7 @@ pub fn TitleBar(on_close: Callback<()>) -> impl IntoView {
         <header class="titlebar" on:mousedown=start_dragging>
             <div class="brand">
                 <img class="titlebar-logo" src="assets/chengming.png" alt="辰林" />
-                <span>"SillyTavern 启动器 1.0.0"</span>
+                <span>{app_title()}</span>
             </div>
             <div class="wc">
                 <button type="button" title="帮助" on:mousedown=stop_titlebar_drag>
@@ -80,6 +81,18 @@ mod tests {
                 "window control should not render raw text glyph {glyph}"
             );
         }
+    }
+
+    #[test]
+    fn titlebar_uses_shared_version_helper() {
+        let production_source = TITLEBAR_SOURCE
+            .split("#[cfg(test)]")
+            .next()
+            .expect("titlebar source should contain production code");
+        assert!(production_source.contains("use crate::version::app_title;"));
+        assert!(production_source.contains("{app_title()}"));
+        assert!(!production_source.contains("启动器 1."));
+        assert!(!production_source.contains("Build 128"));
     }
 
     #[test]

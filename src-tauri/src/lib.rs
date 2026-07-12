@@ -64,7 +64,10 @@ pub fn run() {
             window_commands::window_toggle_maximize,
             window_commands::window_close,
             window_commands::window_start_dragging,
+            window_commands::get_app_info,
+            window_commands::open_install_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+

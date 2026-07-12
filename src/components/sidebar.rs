@@ -53,9 +53,9 @@ pub fn Sidebar(
             >
                 <span class="nav-icon-wrap">
                     {move || if dark.get() {
-                        view! { <img src=icon("circle-pause") alt="" /> }.into_any()
+                        view! { <img src=icon("star") alt="" /> }.into_any()
                     } else {
-                        view! { <img src=icon("circle-play") alt="" /> }.into_any()
+                        view! { <img src=icon("circle-pause") alt="" /> }.into_any()
                     }}
                 </span>
                 <span>{move || if dark.get() { "日间" } else { "夜间" }}</span>

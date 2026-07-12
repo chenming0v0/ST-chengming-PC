@@ -1,4 +1,5 @@
 use crate::model::{CloseAction, Language, LauncherSettings};
+use crate::version::ABOUT_DESCRIPTION;
 use leptos::prelude::*;
 
 #[component]
@@ -210,7 +211,7 @@ pub fn SettingsPage(
             <section class="settings-section">
                 <h2>"关于"</h2>
                 <div class="settings-card">
-                    <SettingRow title="SillyTavern 启动器" desc="版本 1.0.0 Build 128 · 基于 MIT 协议开源，完全免费">
+                    <SettingRow title="SillyTavern 启动器" desc=ABOUT_DESCRIPTION>
                         <button type="button" class="secondary-button">"检查启动器更新"</button>
                     </SettingRow>
                     <SettingRow title="开源仓库" desc="gitcode.com/GitHub_Trending/si/SillyTavern">
@@ -225,6 +226,18 @@ pub fn SettingsPage(
 #[cfg(test)]
 mod tests {
     const SETTINGS_PAGE_SOURCE: &str = include_str!("settings_page.rs");
+
+    #[test]
+    fn settings_page_uses_shared_version_description() {
+        let production_source = SETTINGS_PAGE_SOURCE
+            .split("#[cfg(test)]")
+            .next()
+            .expect("settings page source should contain production code");
+        assert!(production_source.contains("use crate::version::ABOUT_DESCRIPTION;"));
+        assert!(production_source.contains("desc=ABOUT_DESCRIPTION"));
+        assert!(!production_source.contains("1.0.0 Build 128"));
+        assert!(!production_source.contains("MIT 协议"));
+    }
 
     #[test]
     fn settings_page_exposes_all_runtime_launch_settings() {

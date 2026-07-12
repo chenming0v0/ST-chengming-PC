@@ -5,6 +5,9 @@ use leptos::prelude::*;
 pub fn InstallPage(
     runtime_status: ReadSignal<RuntimeStatus>,
     tavern_status: ReadSignal<TavernStatus>,
+    install_dir: ReadSignal<String>,
+    install_note: ReadSignal<String>,
+    install_message: ReadSignal<Option<String>>,
     installing: ReadSignal<bool>,
     progress: ReadSignal<u32>,
     current_stage: ReadSignal<String>,
@@ -38,13 +41,53 @@ pub fn InstallPage(
                 </div>
                 <div class="option-card">
                     <p>"安装路径"</p>
-                    <div class="path-row"><input value="桌面\\chengming\\SillyTavern" readonly /><button type="button">"固定"</button></div>
+                    <div class="path-row">
+                        <input
+                            type="text"
+                            readonly
+                            prop:value=move || {
+                                let base = install_dir.get();
+                                if base.is_empty() {
+                                    "文档\\chengming\\SillyTavern".to_string()
+                                } else {
+                                    format!("{base}\\SillyTavern")
+                                }
+                            }
+                        />
+                        <button type="button" class="path-fixed" disabled title="优先写入用户文档\\chengming；若桌面已有旧数据会继续使用">"自动"</button>
+                    </div>
                 </div>
             </div>
 
+            {move || {
+                let note = install_note.get();
+                if note.is_empty() {
+                    view! { <></> }.into_any()
+                } else {
+                    view! { <p class="install-note">{note}</p> }.into_any()
+                }
+            }}
+            {move || install_message.get().map(|message| {
+                let class_name = if message.contains("失败") { "install-message error" } else { "install-message" };
+                view! { <p class=class_name>{message}</p> }
+            })}
             <section class="install-progress-card">
                 <div class="progress-head">
-                    <strong>"安装进度"</strong>
+                    <div>
+                        <strong>"安装进度"</strong>
+                        <small class="progress-stage">{move || {
+                            let stage = current_stage.get();
+                            match stage.as_str() {
+                                "check" => "环境检测".to_string(),
+                                "node" => "安装 Node.js".to_string(),
+                                "git" => "安装 Git".to_string(),
+                                "tavern" => "克隆 SillyTavern".to_string(),
+                                "deps" => "安装依赖".to_string(),
+                                "done" => "完成".to_string(),
+                                other => other.to_string(),
+                            }
+                        }}</small>
+                    </div>
                     <span>{move || format!("{}%", progress.get())}</span>
                 </div>
                 <div class="progress-track"><div style=move || format!("width:{}%", progress.get())></div></div>

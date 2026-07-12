@@ -31,6 +31,14 @@ pub struct TavernStatus {
     pub running: bool,
 }
 
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct AppInfo {
+    pub name: String,
+    pub version: String,
+    pub install_dir: String,
+    pub note: String,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ProgressPayload {
     pub stage: String,

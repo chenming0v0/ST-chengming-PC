@@ -8,6 +8,7 @@ mod settings_model_tests;
 #[cfg(test)]
 mod style_tests;
 mod tauri_api;
+mod version;
 
 use app::*;
 use leptos::prelude::*;
@@ -20,3 +21,4 @@ fn main() {
         }
     })
 }
+
